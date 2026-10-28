@@ -1,0 +1,10 @@
+# Development overrides: expose infrastructure ports on localhost so the Go
+# backend (`go run`) and Vite (`npm run dev`) can run outside Docker.
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d postgres redis garage garage-init
+services:
+  postgres:
+    ports: ["127.0.0.1:5432:5432"]
+  redis:
+    ports: ["127.0.0.1:6379:6379"]
+  garage:
+    ports: ["127.0.0.1:3900:3900"]
