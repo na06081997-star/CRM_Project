@@ -1,0 +1,112 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --bg: 244 246 248;
+    --surface: 255 255 255;
+    --subtle: 248 250 252;
+    --line: 226 232 240;
+    --ink: 15 23 42;
+    --muted: 100 116 139;
+    --brand: 15 118 110;
+    --brand-strong: 17 94 89;
+    --brand-soft: 204 251 241;
+    --danger: 220 38 38;
+    --warn: 217 119 6;
+    --ok: 22 163 74;
+
+    --activity: 13 148 136;
+    --activity-soft: 220 247 241;
+    --rental: 234 88 12;
+    --rental-soft: 255 237 220;
+    --internal: 124 58 237;
+    --internal-soft: 237 233 254;
+    --closed: 100 116 139;
+    --closed-soft: 241 245 249;
+    color-scheme: light;
+  }
+
+  .dark {
+    --bg: 9 13 20;
+    --surface: 17 23 33;
+    --subtle: 23 31 44;
+    --line: 39 50 66;
+    --ink: 226 232 240;
+    --muted: 140 155 176;
+    --brand: 45 212 191;
+    --brand-strong: 94 234 212;
+    --brand-soft: 19 54 56;
+    --danger: 248 113 113;
+    --warn: 251 191 36;
+    --ok: 74 222 128;
+
+    --activity: 45 212 191;
+    --activity-soft: 17 52 52;
+    --rental: 251 146 60;
+    --rental-soft: 60 35 20;
+    --internal: 167 139 250;
+    --internal-soft: 40 32 70;
+    --closed: 148 163 184;
+    --closed-soft: 30 38 50;
+    color-scheme: dark;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-bg text-ink font-sans antialiased;
+    font-feature-settings: 'tnum' 1;
+  }
+
+  *:focus-visible {
+    @apply outline-none ring-2 ring-brand/60 ring-offset-1 ring-offset-surface;
+  }
+
+  ::selection {
+    @apply bg-brand/20;
+  }
+}
+
+@layer components {
+  .card {
+    @apply rounded-2xl border border-line bg-surface shadow-card;
+  }
+  .input {
+    @apply h-10 w-full rounded-xl border border-line bg-surface px-3 text-sm text-ink placeholder:text-muted/70
+      transition focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 disabled:opacity-60;
+  }
+  textarea.input {
+    @apply h-auto py-2;
+  }
+  .label {
+    @apply mb-1 block text-xs font-medium text-muted;
+  }
+  .chip {
+    @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium;
+  }
+  .hatch {
+    background-image: repeating-linear-gradient(
+      -45deg,
+      rgb(var(--line) / 0.7) 0 6px,
+      transparent 6px 12px
+    );
+  }
+  .scroll-thin {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(var(--line)) transparent;
+  }
+}
+
+@media print {
+  aside,
+  header,
+  .no-print {
+    display: none !important;
+  }
+}
