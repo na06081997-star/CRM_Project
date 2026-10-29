@@ -127,10 +127,21 @@ func (s *Server) saveEquipment(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) listActivities(w http.ResponseWriter, r *http.Request) {
 	listHandler(func(r *http.Request, a service.Actor) ([]domain.Activity, error) {
-		if err := requireAny(a, domain.ActViewCalendar); err != nil {
+		if err := requireAny(a, domain.ActViewCalendar, domain.ActRequestActivity); err != nil {
 			return nil, err
 		}
-		return s.svc.Store().ListActivities(r.Context())
+		list, err := s.svc.Store().ListActivities(r.Context())
+		if err != nil || a.Can(domain.ActViewCalendar) {
+			return list, err
+		}
+		// Coordinators only see the activities they run.
+		mine := []domain.Activity{}
+		for _, act := range list {
+			if act.CoordinatorID != nil && *act.CoordinatorID == a.User.ID {
+				mine = append(mine, act)
+			}
+		}
+		return mine, nil
 	})(w, r)
 }
 

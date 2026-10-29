@@ -24,6 +24,11 @@ type RequestInput struct {
 	Equipment []string  `json:"equipment"`
 	Notes     string    `json:"notes"`
 	Phone     string    `json:"phone"`
+	// Route: "rental" (paid, default) or "activity" (פעילות באמצעות רכז).
+	Route       string     `json:"route"`
+	ActivityID  *uuid.UUID `json:"activityId"`
+	TablesCount int        `json:"tablesCount"`
+	ChairsCount int        `json:"chairsCount"`
 }
 
 func (s *Service) ListRequests(ctx context.Context, actor Actor, f store.RequestFilter) ([]domain.BookingRequest, error) {
@@ -49,11 +54,29 @@ func (s *Service) SubmitRequest(ctx context.Context, actor Actor, in RequestInpu
 	}
 	in.Title = strings.TrimSpace(in.Title)
 	v := domain.NewValidation()
+	if in.Attendees < 0 || in.TablesCount < 0 || in.ChairsCount < 0 {
+		v.Add("attendees", "מספר לא תקין")
+	}
+	switch in.Route {
+	case "", "rental":
+		in.Route = "rental"
+	case "activity":
+		if !actor.Can(domain.ActRequestActivity) {
+			return domain.BookingRequest{}, domain.ErrForbidden
+		}
+		if in.ActivityID != nil {
+			act, err := s.store.ActivityByID(ctx, *in.ActivityID)
+			if err != nil || act.CoordinatorID == nil || *act.CoordinatorID != actor.User.ID {
+				v.Add("activityId", "ניתן לבחור רק פעילות שבאחריותך")
+			} else if in.Title == "" {
+				in.Title = act.Name
+			}
+		}
+	default:
+		v.Add("route", "מסלול לא תקין")
+	}
 	if in.Title == "" {
 		v.Add("title", "יש להזין שם לאירוע")
-	}
-	if in.Attendees < 0 {
-		v.Add("attendees", "מספר משתתפים לא תקין")
 	}
 	if err := domain.ValidateWindow(in.StartsAt, in.EndsAt); err != nil {
 		var ve *domain.ValidationError
@@ -89,18 +112,26 @@ func (s *Service) SubmitRequest(ctx context.Context, actor Actor, in RequestInpu
 		return domain.BookingRequest{}, v
 	}
 
-	quote, err := s.QuoteBooking(ctx, room.ID, domain.BookingRental, in.StartsAt, in.EndsAt, in.Equipment)
-	if err != nil {
-		return domain.BookingRequest{}, err
+	// Activities run through a coordinator are not charged automatically.
+	var quote domain.PriceQuote
+	if in.Route == "rental" {
+		if quote, err = s.QuoteBooking(ctx, room.ID, domain.BookingRental, in.StartsAt, in.EndsAt, in.Equipment); err != nil {
+			return domain.BookingRequest{}, err
+		}
 	}
-	cust, err := s.customerForUser(ctx, actor.User, in.Phone)
-	if err != nil {
-		return domain.BookingRequest{}, err
+	var customerID *uuid.UUID
+	if in.Route == "rental" {
+		cust, err := s.customerForUser(ctx, actor.User, in.Phone)
+		if err != nil {
+			return domain.BookingRequest{}, err
+		}
+		customerID = &cust.ID
 	}
 	req, err := s.store.CreateRequest(ctx, domain.BookingRequest{
-		UserID: actor.User.ID, CustomerID: &cust.ID, RoomID: room.ID, Title: in.Title, EventKind: in.EventKind,
+		UserID: actor.User.ID, CustomerID: customerID, RoomID: room.ID, Title: in.Title, EventKind: in.EventKind,
 		StartsAt: in.StartsAt, EndsAt: in.EndsAt, Attendees: in.Attendees, Equipment: in.Equipment,
-		Notes: in.Notes, QuotedPrice: quote.Total,
+		Notes: in.Notes, QuotedPrice: quote.Total, Route: in.Route, ActivityID: in.ActivityID,
+		TablesCount: in.TablesCount, ChairsCount: in.ChairsCount,
 	})
 	if err != nil {
 		return domain.BookingRequest{}, err
@@ -184,6 +215,11 @@ func (s *Service) ReviewRequest(ctx context.Context, actor Actor, id uuid.UUID, 
 				CustomerID: req.CustomerID, CoordinatorID: d.CoordinatorID, RequestID: &req.ID,
 				Attendees: req.Attendees, Equipment: req.Equipment, Price: price,
 				Notes: req.Notes, InternalNotes: d.InternalNotes, CreatedBy: actor.ID(),
+				TablesCount: req.TablesCount, ChairsCount: req.ChairsCount,
+			}
+			if req.Route == "activity" {
+				// The requester is the coordinator running the activity.
+				b.Type, b.CoordinatorID, b.ActivityID = domain.BookingActivity, &req.UserID, req.ActivityID
 			}
 			existing, err := tx.BlockingBookings(ctx, b.RoomID, b.StartsAt.Add(-4*time.Hour), b.BlockedUntil())
 			if err != nil {
@@ -215,8 +251,11 @@ func (s *Service) ReviewRequest(ctx context.Context, actor Actor, id uuid.UUID, 
 	when := req.StartsAt.In(s.loc).Format("02/01/2006 15:04")
 	if requester, err := s.store.UserByID(ctx, req.UserID); err == nil {
 		if d.Approve {
-			s.notifyUser(requester, "בקשתך אושרה ✅",
-				fmt.Sprintf("שלום %s,\nבקשתך \"%s\" ב%s בתאריך %s אושרה.\nסכום לתשלום: ₪%.2f", requester.FullName, req.Title, req.RoomName, when, *req.FinalPrice))
+			msg := fmt.Sprintf("שלום %s,\nבקשתך \"%s\" ב%s בתאריך %s אושרה.", requester.FullName, req.Title, req.RoomName, when)
+			if req.FinalPrice != nil && *req.FinalPrice > 0 {
+				msg += fmt.Sprintf("\nסכום לתשלום: ₪%.2f", *req.FinalPrice)
+			}
+			s.notifyUser(requester, "בקשתך אושרה ✅", msg)
 		} else {
 			s.notifyUser(requester, "עדכון לגבי בקשתך",
 				fmt.Sprintf("שלום %s,\nלצערנו בקשתך \"%s\" בתאריך %s לא אושרה.\nסיבה: %s", requester.FullName, req.Title, when, req.RejectionReason))

@@ -10,7 +10,7 @@ import { homeFor, useAuth } from '@/lib/auth'
 import { roleLabel, staffKindLabel } from '@/lib/labels'
 import type { Role, User } from '@/lib/types'
 
-const ORDER: Role[] = ['admin', 'coordinator', 'staff', 'user']
+const ORDER: Role[] = ['super_admin', 'admin', 'coordinator', 'staff', 'user']
 
 export function LoginPage() {
   const { session, config, devLogin, googleLogin } = useAuth()

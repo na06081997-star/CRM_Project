@@ -79,14 +79,20 @@ func (in *BookingInput) normalize() error {
 }
 
 func (s *Service) ListBookings(ctx context.Context, actor Actor, f store.BookingFilter) ([]domain.Booking, error) {
-	if err := actor.Require(domain.ActViewCalendar); err != nil {
-		return nil, err
+	switch {
+	case actor.Can(domain.ActViewCalendar):
+	case actor.Can(domain.ActRequestActivity):
+		// Coordinators list only the bookings they run.
+		me := actor.User.ID
+		f.CoordinatorID = &me
+	default:
+		return nil, domain.ErrForbidden
 	}
 	list, err := s.store.ListBookings(ctx, f)
 	if err != nil {
 		return nil, err
 	}
-	if !actor.Can(domain.ActManageBookings) { // staff see the schedule, not the money
+	if !actor.Can(domain.ActManageBookings) { // non-managers never see the money or internal notes
 		for i := range list {
 			list[i].InternalNotes, list[i].Price, list[i].PaidAmount = "", 0, 0
 		}
@@ -356,6 +362,6 @@ func (s *Service) bookingChanged(ctx context.Context, action string, bs ...domai
 	for i, b := range bs {
 		ids[i] = b.ID
 	}
-	s.emit(ctx, EvBookingChanged, map[string]any{"action": action, "ids": ids}, realtime.TopicStaff)
+	s.emit(ctx, EvBookingChanged, map[string]any{"action": action, "ids": ids}, realtime.TopicStaff, realtime.TopicAvailability)
 	s.emit(ctx, EvSignageChanged, nil, realtime.TopicSignage)
 }

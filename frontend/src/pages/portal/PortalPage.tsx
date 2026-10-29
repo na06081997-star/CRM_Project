@@ -11,7 +11,8 @@ import { Badge, Button, Empty, Field, Input, Modal, PageLoader, Select, Tabs, Te
 import { api, ApiError, errorMessage } from '@/lib/api'
 import { useCan, useUser } from '@/lib/auth'
 import { dateLong, dateShort, money, relative, time, timeRange } from '@/lib/format'
-import { requestStatusLabel, roomKindLabel } from '@/lib/labels'
+import { requestRouteLabel, requestStatusLabel, roomKindLabel } from '@/lib/labels'
+import { CancelDialog } from '@/components/CancelDialog'
 import { useLookups } from '@/lib/queries'
 import { useSocket } from '@/lib/realtime'
 import type { BookingRequest, RequestStatus, RoomAvailability } from '@/lib/types'
@@ -306,8 +307,9 @@ function RequestDialog({ pick, date, from, to, attendees, onClose, onSent }: { p
   )
 }
 
-function MyRequests() {
+export function MyRequests() {
   const qc = useQueryClient()
+  const [cancelBooking, setCancelBooking] = useState<BookingRequest | null>(null)
   const { data = [], isLoading } = useQuery({ queryKey: ['requests', 'mine'], queryFn: () => api.get<BookingRequest[]>('/requests') })
   const [open, setOpen] = useState<string | null>(null)
   const cancel = useMutation({
@@ -334,24 +336,28 @@ function MyRequests() {
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
                 <h3 className="font-semibold">{r.title}</h3>
-                <Badge tone={statusTone[r.status]}>{requestStatusLabel[r.status]}</Badge>
+                {r.bookingStatus === 'cancelled' ? <Badge tone="gray">ההזמנה בוטלה</Badge> : <Badge tone={statusTone[r.status]}>{requestStatusLabel[r.status]}</Badge>}
+                {r.route === 'activity' && <Badge tone="teal">{requestRouteLabel.activity}</Badge>}
+                {r.cancelRequested && <Badge tone="red">ביטול ממתין לאישור</Badge>}
               </div>
               <p className="mt-1 text-sm text-muted">
                 {r.roomName} · {dateShort(r.startsAt)} · {timeRange(r.startsAt, r.endsAt)} · {r.attendees} משתתפים
               </p>
               <p className="mt-0.5 text-xs text-muted">נשלחה {relative(r.createdAt)}</p>
             </div>
-            <div className="text-end">
-              <p className="text-xs text-muted">{r.status === 'approved' ? 'מחיר סופי' : 'הערכת מחיר'}</p>
-              <p className="text-lg font-bold">{money(r.finalPrice ?? r.quotedPrice)}</p>
-            </div>
+            {r.route !== 'activity' && (
+              <div className="text-end">
+                <p className="text-xs text-muted">{r.status === 'approved' ? 'מחיר סופי' : 'הערכת מחיר'}</p>
+                <p className="text-lg font-bold">{money(r.finalPrice ?? r.quotedPrice)}</p>
+              </div>
+            )}
           </div>
           {r.status === 'pending' && (
             <div className="mt-3 flex items-center gap-2 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
               <Clock className="h-4 w-4" /> הבקשה בבדיקה אצל צוות המתנ״ס. תקבלו הודעה עם ההחלטה.
             </div>
           )}
-          {r.status === 'approved' && (
+          {r.status === 'approved' && r.bookingStatus !== 'cancelled' && (
             <div className="mt-3 flex items-center gap-2 rounded-xl bg-emerald-50 px-3 py-2 text-xs text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200">
               <CheckCircle2 className="h-4 w-4" /> ההזמנה אושרה ושוריינה ביומן. פרטי תשלום יישלחו אליכם.
             </div>
@@ -368,6 +374,11 @@ function MyRequests() {
                 ביטול הבקשה
               </Button>
             )}
+            {r.status === 'approved' && r.bookingId && r.bookingStatus !== 'cancelled' && !r.cancelRequested && (
+              <Button size="sm" variant="ghost" className="text-danger" onClick={() => setCancelBooking(r)}>
+                בקשת ביטול
+              </Button>
+            )}
           </div>
           {open === r.id && (
             <div className="mt-3">
@@ -376,6 +387,10 @@ function MyRequests() {
           )}
         </article>
       ))}
+      <CancelDialog
+        block={cancelBooking && { id: cancelBooking.bookingId!, title: cancelBooking.title, startsAt: cancelBooking.startsAt, endsAt: cancelBooking.endsAt, roomName: cancelBooking.roomName, cancelRequested: false }}
+        onClose={() => setCancelBooking(null)}
+      />
     </div>
   )
 }

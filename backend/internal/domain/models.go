@@ -12,6 +12,7 @@ import (
 type Role string
 
 const (
+	RoleSuperAdmin  Role = "super_admin"
 	RoleAdmin       Role = "admin"
 	RoleCoordinator Role = "coordinator"
 	RoleStaff       Role = "staff"
@@ -20,7 +21,7 @@ const (
 
 func (r Role) Valid() bool {
 	switch r {
-	case RoleAdmin, RoleCoordinator, RoleStaff, RoleUser:
+	case RoleSuperAdmin, RoleAdmin, RoleCoordinator, RoleStaff, RoleUser:
 		return true
 	}
 	return false
@@ -149,11 +150,17 @@ type Booking struct {
 	SeriesID      *uuid.UUID    `json:"seriesId"`
 	Attendees     int           `json:"attendees"`
 	Equipment     []string      `json:"equipment"`
+	TablesCount   int           `json:"tablesCount"`
+	ChairsCount   int           `json:"chairsCount"`
 	Price         float64       `json:"price"`
 	Notes         string        `json:"notes"`
 	InternalNotes string        `json:"internalNotes,omitempty"`
 	CreatedBy     *uuid.UUID    `json:"createdBy"`
 	CreatedAt     time.Time     `json:"createdAt"`
+	// Cancellation requested by the owner (pending admin decision)
+	CancelRequestedAt   *time.Time `json:"cancelRequestedAt"`
+	CancelRequestedBy   *uuid.UUID `json:"cancelRequestedBy"`
+	CancelRequestReason string     `json:"cancelRequestReason"`
 	// Denormalised for display
 	RoomName        string    `json:"roomName"`
 	BuildingID      uuid.UUID `json:"buildingId"`
@@ -178,6 +185,10 @@ type BookingRequest struct {
 	UserID          uuid.UUID     `json:"userId"`
 	CustomerID      *uuid.UUID    `json:"customerId"`
 	RoomID          uuid.UUID     `json:"roomId"`
+	Route           string        `json:"route"` // rental | activity
+	ActivityID      *uuid.UUID    `json:"activityId"`
+	TablesCount     int           `json:"tablesCount"`
+	ChairsCount     int           `json:"chairsCount"`
 	Title           string        `json:"title"`
 	EventKind       string        `json:"eventKind"`
 	StartsAt        time.Time     `json:"startsAt"`
@@ -199,6 +210,11 @@ type BookingRequest struct {
 	RequesterName  string  `json:"requesterName"`
 	RequesterEmail string  `json:"requesterEmail"`
 	RequesterPhone *string `json:"requesterPhone"`
+	RequesterRole  Role    `json:"requesterRole"`
+	ActivityName   *string `json:"activityName"`
+	// State of the booking created on approval
+	BookingStatus   *string `json:"bookingStatus"`
+	CancelRequested bool    `json:"cancelRequested"`
 	// Computed at read time for pending requests
 	HasConflict bool `json:"hasConflict"`
 }

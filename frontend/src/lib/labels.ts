@@ -1,7 +1,8 @@
 import type { BookingStatus, BookingType, PaymentMethod, RequestStatus, Role, TaskStatus } from './types'
 
 export const roleLabel: Record<Role, string> = {
-  admin: 'מנהל/ת מערכת',
+  super_admin: 'מנהל־על',
+  admin: 'מנהל/ת מתנ״ס',
   coordinator: 'רכז/ת',
   staff: 'צוות תפעול',
   user: 'משתמש/ת פורטל',
@@ -92,4 +93,9 @@ export const typeStyles: Record<BookingType, { bg: string; border: string; text:
   internal: { bg: 'bg-internal-soft', border: 'border-internal', text: 'text-internal', dot: 'bg-internal' },
   maintenance: { bg: 'bg-closed-soft hatch', border: 'border-closed', text: 'text-closed', dot: 'bg-closed' },
   closed: { bg: 'bg-closed-soft hatch', border: 'border-closed', text: 'text-closed', dot: 'bg-closed' },
+}
+
+export const requestRouteLabel: Record<'rental' | 'activity', string> = {
+  rental: 'שכירות בתשלום',
+  activity: 'פעילות באמצעות רכז',
 }

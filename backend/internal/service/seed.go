@@ -94,6 +94,7 @@ func (sd *seeder) run(today time.Time) {
 	}
 
 	// ── People ──
+	sd.user("owner@matnas.local", "מנהל־על (בעלים)", "050-0000000", domain.RoleSuperAdmin, "")
 	admin := sd.user("maya@matnas.local", "מאיה שגיא", "050-1111111", domain.RoleAdmin, "")
 	yoav := sd.user("yoav@matnas.local", "יואב כהן", "050-2222222", domain.RoleCoordinator, "")
 	rotem := sd.user("rotem@matnas.local", "רותם אזולאי", "052-3333333", domain.RoleCoordinator, "")
@@ -258,6 +259,8 @@ func (sd *seeder) run(today time.Time) {
 			StartsAt: at(day(11), 19, 0), EndsAt: at(day(11), 23, 0), Attendees: 100, Equipment: []string{"sound", "catering"}, Notes: "נשמח לסידור שולחנות עגולים", QuotedPrice: 2350},
 		{UserID: uri.ID, RoomID: meet1.ID, Title: "סדנת יזמות", EventKind: "סדנה",
 			StartsAt: at(day(8), 18, 0), EndsAt: at(day(8), 21, 0), Attendees: 18, Equipment: []string{"projector"}, QuotedPrice: 420},
+		{UserID: yoav.ID, RoomID: sports.ID, Title: "טורניר כדורסל חנוכה", EventKind: "פעילות קהילתית", Route: "activity",
+			StartsAt: at(day(10), 9, 0), EndsAt: at(day(10), 13, 0), Attendees: 60, TablesCount: 4, ChairsCount: 80, Equipment: []string{"sound"}, Notes: "צריך גם שולחן ניקוד"},
 		{UserID: uri.ID, RoomID: studio.ID, Title: "חזרה להופעת ריקוד", EventKind: "חזרה",
 			StartsAt: at(day(7), 17, 30), EndsAt: at(day(7), 19, 0), Attendees: 12, QuotedPrice: 225, Notes: "מתנגש עם היפ-הופ? אפשר גם 19:00"},
 	} {

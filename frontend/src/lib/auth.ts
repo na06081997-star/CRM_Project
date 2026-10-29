@@ -152,9 +152,11 @@ export function useCan() {
 /** Where each role lands after login. */
 export function homeFor(role: Role) {
   switch (role) {
+    case 'super_admin':
     case 'admin':
-    case 'coordinator':
       return '/admin'
+    case 'coordinator':
+      return '/rakaz'
     case 'staff':
       return '/staff'
     default:

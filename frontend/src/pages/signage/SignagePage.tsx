@@ -1,8 +1,8 @@
 import clsx from 'clsx'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { CalendarClock, DoorOpen, Maximize, Users, Wifi, WifiOff } from 'lucide-react'
+import { CalendarClock, DoorOpen, LogIn, Maximize, Users, Wifi, WifiOff } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { useParams, useSearchParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { api, publicFileUrl } from '@/lib/api'
 import { fmt, time, timeRange } from '@/lib/format'
 import { useSocket } from '@/lib/realtime'
@@ -64,6 +64,11 @@ export function SignagePage() {
             <p className={clsx('text-[1em]', dark ? 'text-slate-400' : 'text-slate-500')}>{data?.screen?.welcomeText || 'מה קורה עכשיו במתנ״ס'}</p>
           </div>
           <div className="ms-auto flex items-center gap-[2em]">
+            {!slug && !preview && (
+              <Link to="/login" className="flex items-center gap-2 rounded-2xl bg-teal-500 px-[1.1em] py-[0.6em] text-[0.95em] font-semibold text-white shadow-lg shadow-teal-500/30 hover:bg-teal-400">
+                <LogIn className="h-[1.1em] w-[1.1em]" /> כניסה למערכת
+              </Link>
+            )}
             <div className="hidden gap-[1em] md:flex">
               <Pill dark={dark} label="פעילויות היום" value={data?.stats.today ?? 0} />
               <Pill dark={dark} label="חדרים תפוסים" value={data?.stats.occupied ?? 0} tone="rose" />
@@ -136,6 +141,11 @@ export function SignagePage() {
           {connected ? <Wifi className="h-4 w-4 text-emerald-400" /> : <WifiOff className="h-4 w-4 text-amber-400" />}
           {connected ? 'מתעדכן בזמן אמת' : preview ? 'תצוגה מקדימה' : 'מתחבר מחדש…'}
           <span className="ms-auto">קהילה+ · שילוט דיגיטלי</span>
+          {!preview && slug && (
+            <Link to="/login" className="flex items-center gap-1 rounded-lg px-2 py-1 hover:bg-white/10">
+              <LogIn className="h-4 w-4" /> כניסה
+            </Link>
+          )}
           {!preview && (
             <button onClick={() => document.documentElement.requestFullscreen?.()} className="flex items-center gap-1 rounded-lg px-2 py-1 hover:bg-white/10" aria-label="מסך מלא">
               <Maximize className="h-4 w-4" /> מסך מלא

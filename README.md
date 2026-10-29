@@ -21,6 +21,18 @@
 
 Also: customers (with history & balances), coordinators workload, activities (חוגים), reports (by month / room / type / payment method), users & roles, settings, dark mode, Ctrl+K global search.
 
+## Roles
+
+| Role | Home | Can |
+| --- | --- | --- |
+| **מנהל־על** (`super_admin`) | `/admin` | Everything, incl. users & permissions and system settings (buildings, equipment) |
+| **מנהל מתנ״ס** (`admin`) | `/admin` | Approves / rejects every coordinator's and customer's request, global calendar, rooms & pricing, all payments, cancellations, staff tasks, signage |
+| **רכז** (`coordinator`) | `/rakaz` | Availability calendar (free / busy — others only show type + coordinator, never customers, prices or notes), requests slots for their activities ("פעילות באמצעות רכז"), sees only their own requests & activities, asks for cancellations |
+| **צוות** (`staff`) | `/staff` | Own tasks, "בוצע" with note, reminders |
+| **משתמש** (`user`) | `/portal` | Search free rooms, paid rental requests, own requests, cancellation requests |
+
+A pending request never blocks a room; only approved bookings and maintenance blocks do. A cancellation request keeps the room blocked until the manager approves it. The public lobby screen (`/` → `/signage`) has a "כניסה למערכת" button; each user signs in with their own account and lands on their own area.
+
 ## Architecture
 
 ```

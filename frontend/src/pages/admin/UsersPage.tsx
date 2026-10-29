@@ -9,13 +9,14 @@ import { roleLabel, staffKindLabel } from '@/lib/labels'
 import { useUsers } from '@/lib/queries'
 import type { Role, User } from '@/lib/types'
 
-const ROLES: Role[] = ['admin', 'coordinator', 'staff', 'user']
-const roleTone: Record<Role, 'violet' | 'teal' | 'orange' | 'gray'> = { admin: 'violet', coordinator: 'teal', staff: 'orange', user: 'gray' }
+const ROLES: Role[] = ['super_admin', 'admin', 'coordinator', 'staff', 'user']
+const roleTone: Record<Role, 'red' | 'violet' | 'teal' | 'orange' | 'gray'> = { super_admin: 'red', admin: 'violet', coordinator: 'teal', staff: 'orange', user: 'gray' }
 
 const permissionsInfo: Record<Role, string[]> = {
-  admin: ['גישה מלאה לכל המערכת', 'ניהול משתמשים, מחירון ותשלומים', 'הגדרות שילוט דיגיטלי'],
-  coordinator: ['יומן והזמנות', 'אישור בקשות', 'לקוחות ופעילויות', 'צפייה בתשלומים (ללא עריכה)'],
-  staff: ['צפייה במשימות שלי וסימון "בוצע"', 'צפייה ביומן', 'קבלת תזכורות SMS/Telegram'],
+  super_admin: ['שליטה מלאה במערכת', 'ניהול משתמשים והרשאות', 'הגדרות מערכת, מבנים וציוד'],
+  admin: ['אישור / דחיית בקשות של כל הרכזים', 'יומן גלובלי, חדרים ותמחור', 'כל התשלומים והיתרות', 'משימות צוות ושילוט'],
+  coordinator: ['יומן זמינות (פנוי / תפוס + סוג)', 'בקשת מועדים לפעילויות שלו', 'רואה רק את הבקשות והפעילויות שלו', 'בקשת ביטול'],
+  staff: ['המשימות שלי וסימון "בוצע"', 'קבלת תזכורות', 'צפייה בזמינות חדרים'],
   user: ['חיפוש חדרים פנויים', 'הגשת בקשות הזמנה', 'מעקב סטטוס ההזמנות שלי'],
 }
 
@@ -38,7 +39,7 @@ export function UsersPage() {
           </Button>
         }
       />
-      <div className="mb-6 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <div className="mb-6 grid gap-3 md:grid-cols-3 xl:grid-cols-5">
         {ROLES.map((r) => (
           <div key={r} className="card p-4">
             <div className="flex items-center justify-between">

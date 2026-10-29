@@ -9,7 +9,7 @@ import { toast } from '@/components/toast'
 import { Badge, Button, Drawer, Empty, Field, Input, PageHeader, PageLoader, Select, Tabs, Textarea } from '@/components/ui'
 import { api, ApiError, errorMessage } from '@/lib/api'
 import { dateLong, dateShort, dateTime, money, relative, timeRange } from '@/lib/format'
-import { bookingStatusLabel, bookingTypeShort, requestStatusLabel, typeStyles } from '@/lib/labels'
+import { bookingStatusLabel, bookingTypeShort, requestRouteLabel, requestStatusLabel, roleLabel, typeStyles } from '@/lib/labels'
 import { useLookups, useUsers } from '@/lib/queries'
 import type { Booking, BookingRequest, Conflict, RequestStatus } from '@/lib/types'
 import { BookingDialog } from '../calendar/BookingDialog'
@@ -18,7 +18,7 @@ const statusTone: Record<RequestStatus, 'amber' | 'green' | 'red' | 'gray'> = { 
 
 export function BookingsPage() {
   const [params, setParams] = useSearchParams()
-  const tab = (params.get('tab') as 'requests' | 'bookings') || 'requests'
+  const tab = (params.get('tab') as 'requests' | 'cancellations' | 'bookings') || 'requests'
   return (
     <div>
       <PageHeader
@@ -30,12 +30,15 @@ export function BookingsPage() {
             onChange={(v) => setParams({ tab: v })}
             items={[
               { value: 'requests', label: 'בקשות מהפורטל' },
+              { value: 'cancellations', label: 'בקשות ביטול' },
               { value: 'bookings', label: 'כל ההזמנות' },
             ]}
           />
         }
       />
-      {tab === 'requests' ? <Requests initial={params.get('request')} /> : <AllBookings />}
+      {tab === 'requests' && <Requests initial={params.get('request')} />}
+      {tab === 'cancellations' && <Cancellations />}
+      {tab === 'bookings' && <AllBookings />}
     </div>
   )
 }
@@ -84,16 +87,19 @@ function Requests({ initial }: { initial: string | null }) {
                 <div className="min-w-0">
                   <p className="truncate font-semibold">{r.title}</p>
                   <p className="text-xs text-muted">
-                    {r.requesterName} · {r.eventKind || 'אירוע'}
+                    {r.requesterName} ({roleLabel[r.requesterRole]}) · {r.eventKind || 'אירוע'}
                   </p>
                 </div>
                 <Badge tone={statusTone[r.status]}>{requestStatusLabel[r.status]}</Badge>
               </div>
+              <Badge tone={r.route === 'activity' ? 'teal' : 'orange'} className="mt-2">
+                {requestRouteLabel[r.route]}
+              </Badge>
               <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
                 <Info label="חדר" value={r.roomName} />
                 <Info label="מועד" value={`${dateShort(r.startsAt)} · ${timeRange(r.startsAt, r.endsAt)}`} />
                 <Info label="משתתפים" value={String(r.attendees || '—')} />
-                <Info label="הצעת מחיר" value={money(r.finalPrice ?? r.quotedPrice)} />
+                <Info label={r.route === 'activity' ? 'רכז' : 'הצעת מחיר'} value={r.route === 'activity' ? r.requesterName : money(r.finalPrice ?? r.quotedPrice)} />
               </div>
               <div className="mt-3 flex items-center justify-between text-[11px] text-muted">
                 <span>התקבלה {relative(r.createdAt)}</span>
@@ -229,6 +235,9 @@ function ReviewDrawer({ request, onClose }: { request: BookingRequest | null; on
           <Info label="שעות" value={timeRange(request.startsAt, request.endsAt)} />
           <Info label="משתתפים" value={String(request.attendees)} />
           <Info label="ציוד" value={request.equipment.map(equipmentLabel).join(', ') || '—'} />
+          <Info label="מסלול" value={requestRouteLabel[request.route]} />
+          {request.route === 'activity' && <Info label="פעילות" value={request.activityName ?? 'חד־פעמית'} />}
+          {(request.tablesCount > 0 || request.chairsCount > 0) && <Info label="שולחנות / כיסאות" value={`${request.tablesCount} / ${request.chairsCount}`} />}
         </section>
         {request.notes && <p className="rounded-xl bg-subtle p-3 text-sm">“{request.notes}”</p>}
 
@@ -387,6 +396,61 @@ function AllBookings() {
         </div>
       )}
       <BookingDialog open={!!open} booking={open} draft={null} onClose={() => setOpen(null)} />
+    </div>
+  )
+}
+
+// ── Cancellation requests (from coordinators / portal users) ──
+
+function Cancellations() {
+  const qc = useQueryClient()
+  const [notes, setNotes] = useState<Record<string, string>>({})
+  const { data = [], isLoading } = useQuery({
+    queryKey: ['bookings', 'cancel-requests'],
+    queryFn: () => api.get<Booking[]>('/bookings', { cancelRequested: 'true' }),
+  })
+  const resolve = useMutation({
+    mutationFn: ({ id, approve }: { id: string; approve: boolean }) => api.post(`/bookings/${id}/cancel-request/resolve`, { approve, note: notes[id] ?? '' }),
+    onSuccess: (_, v) => {
+      toast.success(v.approve ? 'ההזמנה בוטלה והחדר שוחרר' : 'בקשת הביטול נדחתה – ההזמנה בתוקף')
+      for (const k of ['bookings', 'dashboard', 'requests']) qc.invalidateQueries({ queryKey: [k] })
+    },
+    onError: (e) => toast.error(errorMessage(e)),
+  })
+  if (isLoading) return <PageLoader />
+  if (data.length === 0)
+    return (
+      <div className="card">
+        <Empty icon={<ClipboardList className="h-6 w-6" />} title="אין בקשות ביטול פתוחות" hint="כשרכז או לקוח מבקשים לבטל הזמנה מאושרת, הבקשה מופיעה כאן. עד ההחלטה – החדר נשאר שמור." />
+      </div>
+    )
+  return (
+    <div className="grid gap-3 md:grid-cols-2">
+      {data.map((b) => (
+        <article key={b.id} className="card p-4">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <p className="truncate font-semibold">{b.title}</p>
+              <p className="text-xs text-muted">
+                {b.roomName} · {dateShort(b.startsAt)} · {timeRange(b.startsAt, b.endsAt)}
+              </p>
+              <p className="text-xs text-muted">{b.coordinatorName ? `רכז: ${b.coordinatorName}` : b.customerName}</p>
+            </div>
+            <Badge tone="red">ביטול ממתין</Badge>
+          </div>
+          <p className="mt-3 rounded-xl bg-subtle p-3 text-sm">“{b.cancelRequestReason}”</p>
+          {b.cancelRequestedAt && <p className="mt-1 text-[11px] text-muted">התבקש {relative(b.cancelRequestedAt)}</p>}
+          <Input className="mt-3" placeholder="הערה למבקש/ת (לא חובה)" value={notes[b.id] ?? ''} onChange={(e) => setNotes({ ...notes, [b.id]: e.target.value })} />
+          <div className="mt-3 flex justify-end gap-2">
+            <Button variant="secondary" size="sm" icon={<X className="h-4 w-4" />} loading={resolve.isPending && resolve.variables?.id === b.id && !resolve.variables.approve} onClick={() => resolve.mutate({ id: b.id, approve: false })}>
+              דחיית הביטול
+            </Button>
+            <Button variant="danger" size="sm" icon={<Check className="h-4 w-4" />} loading={resolve.isPending && resolve.variables?.id === b.id && resolve.variables.approve} onClick={() => resolve.mutate({ id: b.id, approve: true })}>
+              אישור ביטול
+            </Button>
+          </div>
+        </article>
+      ))}
     </div>
   )
 }

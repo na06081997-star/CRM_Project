@@ -19,8 +19,9 @@ func (s *Server) listBookings(w http.ResponseWriter, r *http.Request) {
 		ActivityID: qUUID(r, "activityId"),
 		Types:      qList(r, "types"), Statuses: qList(r, "statuses"),
 		Search: r.URL.Query().Get("q"), Limit: qInt(r, "limit", 0),
+		CancelRequested: r.URL.Query().Get("cancelRequested") == "true",
 	}
-	if f.From.IsZero() && f.To.IsZero() && f.Search == "" && f.CustomerID == nil {
+	if f.From.IsZero() && f.To.IsZero() && f.Search == "" && f.CustomerID == nil && !f.CancelRequested {
 		f.From = time.Now().AddDate(0, 0, -7)
 		f.To = time.Now().AddDate(0, 0, 31)
 	}
@@ -264,4 +265,55 @@ func (s *Server) report(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ok(w, rep)
+}
+
+// availabilityCalendar returns occupied blocks for the coordinator calendar.
+func (s *Server) availabilityCalendar(w http.ResponseWriter, r *http.Request) {
+	blocks, err := s.svc.Availability(r.Context(), mustActor(r), qTime(r, "from"), qTime(r, "to"), qUUID(r, "buildingId"), qUUIDs(r, "roomIds"))
+	if err != nil {
+		fail(w, r, err)
+		return
+	}
+	ok(w, blocks)
+}
+
+func (s *Server) requestCancellation(w http.ResponseWriter, r *http.Request) {
+	id, err := pathID(r)
+	if err != nil {
+		fail(w, r, err)
+		return
+	}
+	var in struct {
+		Reason string `json:"reason"`
+	}
+	if err := decode(r, &in); err != nil {
+		fail(w, r, err)
+		return
+	}
+	if err := s.svc.RequestCancellation(r.Context(), mustActor(r), id, in.Reason); err != nil {
+		fail(w, r, err)
+		return
+	}
+	noContent(w)
+}
+
+func (s *Server) resolveCancellation(w http.ResponseWriter, r *http.Request) {
+	id, err := pathID(r)
+	if err != nil {
+		fail(w, r, err)
+		return
+	}
+	var in struct {
+		Approve bool   `json:"approve"`
+		Note    string `json:"note"`
+	}
+	if err := decode(r, &in); err != nil {
+		fail(w, r, err)
+		return
+	}
+	if err := s.svc.ResolveCancellation(r.Context(), mustActor(r), id, in.Approve, in.Note); err != nil {
+		fail(w, r, err)
+		return
+	}
+	noContent(w)
 }

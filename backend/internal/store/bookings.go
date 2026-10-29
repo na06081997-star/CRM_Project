@@ -14,7 +14,8 @@ import (
 const bookingSelect = `
 	SELECT b.id, b.room_id, b.title, b.type, b.status, b.starts_at, b.ends_at, b.buffer_minutes,
 	       b.activity_id, b.coordinator_id, b.customer_id, b.request_id, b.series_id, b.attendees,
-	       b.equipment, b.price, b.notes, b.internal_notes, b.created_by, b.created_at,
+	       b.equipment, b.tables_count, b.chairs_count, b.price, b.notes, b.internal_notes, b.created_by, b.created_at,
+	       b.cancel_requested_at, b.cancel_requested_by, b.cancel_request_reason,
 	       r.name, r.building_id, co.full_name, cu.name,
 	       COALESCE((SELECT sum(p.amount) FROM payments p WHERE p.booking_id = b.id), 0)
 	FROM bookings b
@@ -26,7 +27,8 @@ func scanBooking(r pgx.Row) (domain.Booking, error) {
 	var b domain.Booking
 	err := r.Scan(&b.ID, &b.RoomID, &b.Title, &b.Type, &b.Status, &b.StartsAt, &b.EndsAt, &b.BufferMinutes,
 		&b.ActivityID, &b.CoordinatorID, &b.CustomerID, &b.RequestID, &b.SeriesID, &b.Attendees,
-		&b.Equipment, &b.Price, &b.Notes, &b.InternalNotes, &b.CreatedBy, &b.CreatedAt,
+		&b.Equipment, &b.TablesCount, &b.ChairsCount, &b.Price, &b.Notes, &b.InternalNotes, &b.CreatedBy, &b.CreatedAt,
+		&b.CancelRequestedAt, &b.CancelRequestedBy, &b.CancelRequestReason,
 		&b.RoomName, &b.BuildingID, &b.CoordinatorName, &b.CustomerName, &b.PaidAmount)
 	return b, mapErr(err)
 }
@@ -43,6 +45,7 @@ type BookingFilter struct {
 	Statuses        []string
 	Search          string
 	OnlyWithBalance bool
+	CancelRequested bool
 	Limit           int
 }
 
@@ -82,6 +85,9 @@ func (s *Store) ListBookings(ctx context.Context, f BookingFilter) ([]domain.Boo
 		p := w.next("%" + q + "%")
 		w.raw("(b.title ILIKE " + p + " OR cu.name ILIKE " + p + " OR co.full_name ILIKE " + p + " OR r.name ILIKE " + p + ")")
 	}
+	if f.CancelRequested {
+		w.raw("b.cancel_requested_at IS NOT NULL AND b.status IN ('pending', 'confirmed')")
+	}
 	if f.OnlyWithBalance {
 		w.raw("b.price > COALESCE((SELECT sum(p.amount) FROM payments p WHERE p.booking_id = b.id), 0)")
 		w.raw("b.status IN ('pending', 'confirmed')")
@@ -114,12 +120,12 @@ func (s *Store) CreateBooking(ctx context.Context, b domain.Booking) (domain.Boo
 	err := s.q.QueryRow(ctx, `
 		INSERT INTO bookings (room_id, title, type, status, starts_at, ends_at, buffer_minutes, activity_id,
 		                      coordinator_id, customer_id, request_id, series_id, attendees, equipment, price,
-		                      notes, internal_notes, created_by)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+		                      notes, internal_notes, created_by, tables_count, chairs_count)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
 		RETURNING id`,
 		b.RoomID, b.Title, b.Type, b.Status, b.StartsAt, b.EndsAt, b.BufferMinutes, b.ActivityID,
 		b.CoordinatorID, b.CustomerID, b.RequestID, b.SeriesID, b.Attendees, nonNil(b.Equipment), b.Price,
-		b.Notes, b.InternalNotes, b.CreatedBy).Scan(&id)
+		b.Notes, b.InternalNotes, b.CreatedBy, b.TablesCount, b.ChairsCount).Scan(&id)
 	if err != nil {
 		return domain.Booking{}, mapErr(err)
 	}
@@ -130,10 +136,10 @@ func (s *Store) UpdateBooking(ctx context.Context, b domain.Booking) (domain.Boo
 	tag, err := s.q.Exec(ctx, `
 		UPDATE bookings SET room_id = $2, title = $3, type = $4, status = $5, starts_at = $6, ends_at = $7,
 		       buffer_minutes = $8, activity_id = $9, coordinator_id = $10, customer_id = $11, attendees = $12,
-		       equipment = $13, price = $14, notes = $15, internal_notes = $16
+		       equipment = $13, price = $14, notes = $15, internal_notes = $16, tables_count = $17, chairs_count = $18
 		WHERE id = $1`,
 		b.ID, b.RoomID, b.Title, b.Type, b.Status, b.StartsAt, b.EndsAt, b.BufferMinutes, b.ActivityID,
-		b.CoordinatorID, b.CustomerID, b.Attendees, nonNil(b.Equipment), b.Price, b.Notes, b.InternalNotes)
+		b.CoordinatorID, b.CustomerID, b.Attendees, nonNil(b.Equipment), b.Price, b.Notes, b.InternalNotes, b.TablesCount, b.ChairsCount)
 	if err != nil {
 		return domain.Booking{}, mapErr(err)
 	}
@@ -144,7 +150,9 @@ func (s *Store) UpdateBooking(ctx context.Context, b domain.Booking) (domain.Boo
 }
 
 func (s *Store) SetBookingStatus(ctx context.Context, id uuid.UUID, status domain.BookingStatus) error {
-	tag, err := s.q.Exec(ctx, `UPDATE bookings SET status = $2 WHERE id = $1`, id, status)
+	tag, err := s.q.Exec(ctx, `UPDATE bookings SET status = $2,
+		cancel_requested_at = CASE WHEN $2::booking_status = 'cancelled' THEN NULL ELSE cancel_requested_at END
+		WHERE id = $1`, id, status)
 	if err == nil && tag.RowsAffected() == 0 {
 		return domain.ErrNotFound
 	}
@@ -153,6 +161,20 @@ func (s *Store) SetBookingStatus(ctx context.Context, id uuid.UUID, status domai
 
 func (s *Store) DeleteBooking(ctx context.Context, id uuid.UUID) error {
 	tag, err := s.q.Exec(ctx, `DELETE FROM bookings WHERE id = $1`, id)
+	if err == nil && tag.RowsAffected() == 0 {
+		return domain.ErrNotFound
+	}
+	return mapErr(err)
+}
+
+// SetCancelRequest records (by != nil) or clears (by == nil) an owner's
+// request to cancel a booking.
+func (s *Store) SetCancelRequest(ctx context.Context, id uuid.UUID, by *uuid.UUID, reason string) error {
+	tag, err := s.q.Exec(ctx, `
+		UPDATE bookings SET
+		       cancel_requested_at = CASE WHEN $2::uuid IS NULL THEN NULL ELSE now() END,
+		       cancel_requested_by = $2, cancel_request_reason = $3
+		WHERE id = $1`, id, by, reason)
 	if err == nil && tag.RowsAffected() == 0 {
 		return domain.ErrNotFound
 	}

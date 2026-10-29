@@ -10,9 +10,12 @@ import (
 	"context"
 	"errors"
 	"os"
+	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/google/uuid"
 
 	"github.com/na06081997-star/CRM_Project/backend/internal/config"
 	"github.com/na06081997-star/CRM_Project/backend/internal/db"
@@ -248,10 +251,101 @@ func TestSignageAndDashboard(t *testing.T) {
 		t.Fatalf("unknown screen should 404: %v", err)
 	}
 	d, err := svc.Dashboard(ctx, actor(t, st, "maya@matnas.local"), nil)
-	if err != nil || len(d.Week) != 7 || d.PendingRequests != 3 {
+	if err != nil || len(d.Week) != 7 || d.PendingRequests != 4 {
 		t.Fatalf("dashboard: %v %+v", err, d)
 	}
 	if _, err := svc.Dashboard(ctx, actor(t, st, "dana@example.com"), nil); !errors.Is(err, domain.ErrForbidden) {
 		t.Fatal("portal users must not see the dashboard")
+	}
+}
+
+func TestCoordinatorVisibilityAndActivityRoute(t *testing.T) {
+	svc, st := setup(t)
+	ctx := context.Background()
+	yoav := actor(t, st, "yoav@matnas.local")
+	rotem := actor(t, st, "rotem@matnas.local")
+	admin := actor(t, st, "maya@matnas.local")
+	now := time.Now()
+
+	// Coordinators cannot open the admin views.
+	if _, err := svc.Dashboard(ctx, yoav, nil); !errors.Is(err, domain.ErrForbidden) {
+		t.Fatal("coordinator must not see the dashboard")
+	}
+	if _, err := svc.ListPayments(ctx, yoav, store.PaymentFilter{}); !errors.Is(err, domain.ErrForbidden) {
+		t.Fatal("coordinator must not see payments")
+	}
+	// Bookings list is forced to their own, without money.
+	list, err := svc.ListBookings(ctx, yoav, store.BookingFilter{From: now.AddDate(0, 0, -7), To: now.AddDate(0, 0, 14)})
+	if err != nil || len(list) == 0 {
+		t.Fatalf("own bookings: %v", err)
+	}
+	for _, b := range list {
+		if b.CoordinatorID == nil || *b.CoordinatorID != yoav.User.ID || b.InternalNotes != "" {
+			t.Fatalf("leaked booking %+v", b)
+		}
+	}
+	// Availability shows everything, but others' bookings are anonymised.
+	blocks, err := svc.Availability(ctx, yoav, now.AddDate(0, 0, -7), now.AddDate(0, 0, 14), nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var mine, others int
+	for _, b := range blocks {
+		if b.Mine {
+			mine++
+			continue
+		}
+		others++
+		if b.Type == domain.BookingRental && b.Title != "שכירות" && !strings.HasPrefix(b.Title, "שכירות · רכז") {
+			t.Fatalf("rental title leaked: %q", b.Title)
+		}
+	}
+	if mine == 0 || others == 0 {
+		t.Fatalf("expected own and foreign blocks, got %d/%d", mine, others)
+	}
+
+	// Activity-route request: no charge, only own requests visible.
+	start := time.Date(now.Year(), now.Month(), now.Day(), 10, 0, 0, 0, svc.loc).AddDate(0, 1, 0)
+	room := hall(t, st)
+	req, err := svc.SubmitRequest(ctx, yoav, RequestInput{RoomID: room.ID, Title: "ערב הורים", Route: "activity", StartsAt: start, EndsAt: start.Add(2 * time.Hour), TablesCount: 10, ChairsCount: 100})
+	if err != nil || req.QuotedPrice != 0 || req.Route != "activity" {
+		t.Fatalf("activity request: %v %+v", err, req)
+	}
+	if _, err := svc.SubmitRequest(ctx, actor(t, st, "dana@example.com"), RequestInput{RoomID: room.ID, Title: "x", Route: "activity", StartsAt: start, EndsAt: start.Add(time.Hour)}); !errors.Is(err, domain.ErrForbidden) {
+		t.Fatal("portal users cannot use the coordinator route")
+	}
+	others2, _ := svc.ListRequests(ctx, rotem, store.RequestFilter{})
+	for _, r := range others2 {
+		if r.UserID != rotem.User.ID {
+			t.Fatal("coordinator sees another coordinator's request")
+		}
+	}
+	approved, err := svc.ReviewRequest(ctx, admin, req.ID, ReviewDecision{Approve: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _ := st.BookingByID(ctx, *approved.BookingID)
+	if b.Type != domain.BookingActivity || b.CoordinatorID == nil || *b.CoordinatorID != yoav.User.ID || b.ChairsCount != 100 {
+		t.Fatalf("approved activity booking %+v", b)
+	}
+
+	// Cancellation: owner asks, room stays blocked until the manager approves.
+	if err := svc.RequestCancellation(ctx, rotem, b.ID, "x"); !errors.Is(err, domain.ErrForbidden) {
+		t.Fatal("only the owner may request cancellation")
+	}
+	if err := svc.RequestCancellation(ctx, yoav, b.ID, "ביטול האירוע"); err != nil {
+		t.Fatal(err)
+	}
+	if c, _ := svc.CheckConflicts(ctx, room.ID, start, start.Add(time.Hour), uuid.Nil); len(c) == 0 {
+		t.Fatal("room must stay blocked while cancellation is pending")
+	}
+	if err := svc.ResolveCancellation(ctx, yoav, b.ID, true, ""); !errors.Is(err, domain.ErrForbidden) {
+		t.Fatal("coordinator cannot approve own cancellation")
+	}
+	if err := svc.ResolveCancellation(ctx, admin, b.ID, true, ""); err != nil {
+		t.Fatal(err)
+	}
+	if c, _ := svc.CheckConflicts(ctx, room.ID, start, start.Add(time.Hour), uuid.Nil); len(c) != 0 {
+		t.Fatal("room must be free after approved cancellation")
 	}
 }

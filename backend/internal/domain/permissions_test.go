@@ -8,16 +8,24 @@ func TestCan(t *testing.T) {
 		act  Action
 		want bool
 	}{
-		{RoleAdmin, ActManageUsers, true},
+		{RoleSuperAdmin, ActManageUsers, true},
+		{RoleSuperAdmin, ActManageSettings, true},
+		{RoleAdmin, ActReviewRequests, true},
 		{RoleAdmin, ActManagePayments, true},
-		{RoleCoordinator, ActReviewRequests, true},
-		{RoleCoordinator, ActManagePayments, false},
-		{RoleCoordinator, ActViewPayments, true},
-		{RoleCoordinator, ActManageUsers, false},
+		{RoleAdmin, ActViewCalendar, true},
+		{RoleAdmin, ActManageUsers, false},
+		{RoleAdmin, ActManageSettings, false},
+		{RoleCoordinator, ActViewAvailability, true},
+		{RoleCoordinator, ActRequestActivity, true},
+		{RoleCoordinator, ActViewCalendar, false},
+		{RoleCoordinator, ActReviewRequests, false},
+		{RoleCoordinator, ActViewPayments, false},
+		{RoleCoordinator, ActViewDashboard, false},
 		{RoleStaff, ActWorkTasks, true},
 		{RoleStaff, ActManageBookings, false},
 		{RoleUser, ActSubmitRequest, true},
-		{RoleUser, ActViewDashboard, false},
+		{RoleUser, ActRequestActivity, false},
+		{RoleUser, ActViewAvailability, false},
 		{Role("hacker"), ActSubmitRequest, false},
 	}
 	for _, tt := range tests {
@@ -28,12 +36,15 @@ func TestCan(t *testing.T) {
 }
 
 func TestPermissionsListMatchesCan(t *testing.T) {
-	for _, r := range []Role{RoleAdmin, RoleCoordinator, RoleStaff, RoleUser} {
+	for _, r := range []Role{RoleSuperAdmin, RoleAdmin, RoleCoordinator, RoleStaff, RoleUser} {
 		for _, a := range Permissions(r) {
 			if !Can(r, a) {
 				t.Errorf("%s lists %s but Can is false", r, a)
 			}
 		}
+	}
+	if len(Permissions(RoleSuperAdmin)) != len(allActions) {
+		t.Error("super admin must hold every permission")
 	}
 	if len(Permissions(RoleUser)) != 1 {
 		t.Errorf("user should have exactly one permission, got %v", Permissions(RoleUser))

@@ -21,6 +21,8 @@ const redisChannel = "crm:events"
 const (
 	TopicStaff   = "staff"   // admins / coordinators: everything calendar related
 	TopicSignage = "signage" // public displays
+	// TopicAvailability carries booking changes (ids only) to coordinators.
+	TopicAvailability = "availability"
 )
 
 // UserTopic targets a single user's connections (notifications, own requests).

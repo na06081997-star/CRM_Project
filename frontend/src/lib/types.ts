@@ -1,4 +1,4 @@
-export type Role = 'admin' | 'coordinator' | 'staff' | 'user'
+export type Role = 'super_admin' | 'admin' | 'coordinator' | 'staff' | 'user'
 export type BookingType = 'activity' | 'rental' | 'internal' | 'maintenance' | 'closed'
 export type BookingStatus = 'pending' | 'confirmed' | 'cancelled' | 'rejected'
 export type RequestStatus = 'pending' | 'approved' | 'rejected' | 'cancelled'
@@ -102,11 +102,16 @@ export interface Booking {
   seriesId: ID | null
   attendees: number
   equipment: string[]
+  tablesCount: number
+  chairsCount: number
   price: number
   notes: string
   internalNotes?: string
   createdBy: ID | null
   createdAt: string
+  cancelRequestedAt: string | null
+  cancelRequestedBy: ID | null
+  cancelRequestReason: string
   roomName: string
   buildingId: ID
   coordinatorName: string | null
@@ -119,6 +124,10 @@ export interface BookingRequest {
   userId: ID
   customerId: ID | null
   roomId: ID
+  route: 'rental' | 'activity'
+  activityId: ID | null
+  tablesCount: number
+  chairsCount: number
   title: string
   eventKind: string
   startsAt: string
@@ -139,6 +148,10 @@ export interface BookingRequest {
   requesterName: string
   requesterEmail: string
   requesterPhone: string | null
+  requesterRole: Role
+  activityName: string | null
+  bookingStatus: BookingStatus | null
+  cancelRequested: boolean
   hasConflict: boolean
 }
 
@@ -348,4 +361,22 @@ export interface PublicConfig {
   timezone: string
   version: string
   firebase: { apiKey: string; authDomain: string; projectId: string; appId: string }
+}
+
+/** Occupied period in the coordinator availability calendar. */
+export interface Block {
+  id: string
+  roomId: ID
+  roomName: string
+  buildingId: ID
+  startsAt: string
+  endsAt: string
+  type: BookingType
+  status: BookingStatus
+  title: string
+  coordinatorName: string | null
+  mine: boolean
+  request: boolean
+  seriesId: ID | null
+  cancelRequested: boolean
 }

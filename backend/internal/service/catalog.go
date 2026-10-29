@@ -20,7 +20,7 @@ import (
 var hhmm = regexp.MustCompile(`^([01]\d|2[0-3]):[0-5]\d$`)
 
 func (s *Service) SaveBuilding(ctx context.Context, actor Actor, b domain.Building) (domain.Building, error) {
-	if err := actor.Require(domain.ActManageRooms); err != nil {
+	if err := actor.Require(domain.ActManageSettings); err != nil {
 		return b, err
 	}
 	v := domain.NewValidation()
@@ -87,7 +87,7 @@ func (s *Service) SaveRoom(ctx context.Context, actor Actor, r domain.Room) (dom
 }
 
 func (s *Service) SaveEquipment(ctx context.Context, actor Actor, e domain.EquipmentItem) (domain.EquipmentItem, error) {
-	if err := actor.Require(domain.ActManageRooms); err != nil {
+	if err := actor.Require(domain.ActManageSettings); err != nil {
 		return e, err
 	}
 	e.Code = strings.TrimSpace(strings.ToLower(e.Code))

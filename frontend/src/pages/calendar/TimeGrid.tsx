@@ -25,7 +25,8 @@ interface Props {
   endHour: number
   lens: Lens
   myId?: string
-  canEdit: boolean
+  canEdit: boolean // drag on empty cells to create
+  canMove?: boolean // drag / resize existing items (defaults to canEdit)
   focusId?: string | null
   onCreate: (r: { start: Date; end: Date; roomId?: string }) => void
   onOpen: (b: Booking) => void
@@ -40,7 +41,7 @@ type Drag =
   | { mode: 'move'; booking: Booking; col: number; origCol: number; offset: number; start: number; duration: number; moved: boolean; x0: number; y0: number }
   | { mode: 'resize'; booking: Booking; col: number; start: number; end: number }
 
-export function TimeGrid({ columns, bookings, startHour, endHour, lens, myId, canEdit, focusId, onCreate, onOpen, onMove }: Props) {
+export function TimeGrid({ columns, bookings, startHour, endHour, lens, myId, canEdit, canMove = canEdit, focusId, onCreate, onOpen, onMove }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
   const [drag, setDrag] = useState<Drag | null>(null)
@@ -146,7 +147,7 @@ export function TimeGrid({ columns, bookings, startHour, endHour, lens, myId, ca
     const day = columns[col].day
     const s = (new Date(b.startsAt).getTime() - day.getTime()) / 60000
     const dur = (new Date(b.endsAt).getTime() - new Date(b.startsAt).getTime()) / 60000
-    const editable = canEdit && b.status !== 'cancelled'
+    const editable = canMove && b.status !== 'cancelled'
     setDrag({ mode: 'move', booking: b, col, origCol: col, offset: min - s, start: s, duration: dur, moved: false, x0: e.clientX, y0: editable ? e.clientY : Number.NaN })
   }
 
@@ -218,7 +219,7 @@ export function TimeGrid({ columns, bookings, startHour, endHour, lens, myId, ca
                       mine={!!myId && b.coordinatorId === myId}
                       dimmed={hidden}
                       focused={focusId === b.id}
-                      canResize={canEdit && b.status !== 'cancelled'}
+                      canResize={canMove && b.status !== 'cancelled'}
                       onPointerDown={(e) => startMove(e, b, ci)}
                       onResize={(e) => startResize(e, b, ci)}
                       resizingEnd={drag?.mode === 'resize' && drag.booking.id === b.id ? drag.end : undefined}

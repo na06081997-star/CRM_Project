@@ -55,7 +55,7 @@ func (s *Service) createFirebaseUser(ctx context.Context, id auth.Identity) (dom
 	role := domain.RoleUser
 	for _, e := range s.cfg.BootstrapAdminEmails {
 		if strings.EqualFold(e, id.Email) {
-			role = domain.RoleAdmin
+			role = domain.RoleSuperAdmin
 		}
 	}
 	name := id.Name
@@ -110,7 +110,7 @@ func (s *Service) SaveUser(ctx context.Context, actor Actor, id uuid.UUID, in Us
 	if err := in.validate(); err != nil {
 		return domain.User{}, err
 	}
-	if id == actor.User.ID && (in.Role != domain.RoleAdmin || !in.IsActive) {
+	if id == actor.User.ID && (in.Role != actor.User.Role || !in.IsActive) {
 		v := domain.NewValidation()
 		v.Add("role", "לא ניתן להסיר הרשאות ניהול מעצמך")
 		return domain.User{}, v

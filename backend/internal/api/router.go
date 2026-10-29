@@ -63,6 +63,7 @@ func (s *Server) Routes() http.Handler {
 			r.Get("/dashboard", s.dashboard)
 			r.Get("/reports", s.report)
 			r.Get("/availability", s.availability)
+			r.Get("/availability/calendar", s.availabilityCalendar)
 
 			r.Route("/bookings", func(r chi.Router) {
 				r.Get("/", s.listBookings)
@@ -73,6 +74,8 @@ func (s *Server) Routes() http.Handler {
 				r.Delete("/{id}", s.deleteBooking)
 				r.Post("/{id}/move", s.moveBooking)
 				r.Post("/{id}/cancel", s.cancelBooking)
+				r.Post("/{id}/cancel-request", s.requestCancellation)
+				r.Post("/{id}/cancel-request/resolve", s.resolveCancellation)
 			})
 			r.Route("/requests", func(r chi.Router) {
 				r.Get("/", s.listRequests)
@@ -190,6 +193,8 @@ func (s *Server) ws(w http.ResponseWriter, r *http.Request) {
 	topics := []string{realtime.UserTopic(a.User.ID.String())}
 	if a.Can(domain.ActViewCalendar) {
 		topics = append(topics, realtime.TopicStaff)
+	} else if a.Can(domain.ActViewAvailability) {
+		topics = append(topics, realtime.TopicAvailability)
 	}
 	s.hub.Serve(w, r, topics)
 }

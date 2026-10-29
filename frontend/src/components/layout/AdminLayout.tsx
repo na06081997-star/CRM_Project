@@ -83,18 +83,20 @@ export function AdminLayout() {
     { to: '/admin', label: 'לוח בקרה', icon: <LayoutGrid />, perm: 'dashboard:view', end: true },
     { to: '/admin/calendar', label: 'יומן הזמנות', icon: <CalendarDays />, perm: 'calendar:view' },
     { to: '/admin/bookings', label: 'הזמנות ובקשות', icon: <ClipboardList />, perm: 'requests:review', badge: pending.data?.length },
-    { to: '/admin/rooms', label: 'חדרים ואולמות', icon: <Building2 />, perm: 'calendar:view' },
+    { to: '/admin/rooms', label: 'חדרים ואולמות', icon: <Building2 />, perm: 'rooms:manage' },
     { to: '/admin/activities', label: 'פעילויות', icon: <Sparkles />, perm: 'activities:manage' },
     { to: '/admin/customers', label: 'לקוחות', icon: <Users />, perm: 'customers:manage' },
     { to: '/admin/coordinators', label: 'רכזים', icon: <UserCog />, perm: 'bookings:manage' },
     { to: '/admin/payments', label: 'תשלומים', icon: <CreditCard />, perm: 'payments:view', badge: pay.data?.unpaidCount },
     { to: '/admin/reports', label: 'דוחות', icon: <BarChart3 />, perm: 'reports:view' },
     { to: '/admin/users', label: 'משתמשים והרשאות', icon: <ShieldCheck />, perm: 'users:manage' },
-    { to: '/admin/settings', label: 'הגדרות מערכת', icon: <Settings2 />, perm: 'rooms:manage' },
+    { to: '/admin/settings', label: 'הגדרות מערכת', icon: <Settings2 />, perm: 'settings:manage' },
   ]
   const extra: NavItem[] = [
     { to: '/admin/tasks', label: 'משימות תפעול', icon: <ListChecks />, perm: 'tasks:manage' },
     { to: '/admin/signage', label: 'שילוט דיגיטלי', icon: <Monitor />, perm: 'signage:manage' },
+    { to: '/rakaz', label: 'תצוגת רכז (הדגמה)', icon: <UserCog />, perm: 'requests:review' },
+    { to: '/staff', label: 'אפליקציית צוות', icon: <ListChecks />, perm: 'tasks:manage' },
   ]
 
   const renderNav = (items: NavItem[]) =>
