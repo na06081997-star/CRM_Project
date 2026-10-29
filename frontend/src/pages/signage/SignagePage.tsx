@@ -3,7 +3,10 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { CalendarClock, DoorOpen, LogIn, Maximize, Users, Wifi, WifiOff } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
+import { ProductMark } from '@/components/layout/Logo'
 import { api, publicFileUrl } from '@/lib/api'
+import { useAuth } from '@/lib/auth'
+import { PRODUCT, useOrg } from '@/lib/brand'
 import { fmt, time, timeRange } from '@/lib/format'
 import { useSocket } from '@/lib/realtime'
 import type { SignageRoom, SignageView } from '@/lib/types'
@@ -24,7 +27,15 @@ export function SignagePage() {
     queryFn: () => api.get<SignageView>('/public/signage', { screen: slug || undefined }),
     refetchInterval: 5 * 60_000, // safety net; live updates come over WebSocket
   })
-  const connected = useSocket('/ws/signage', () => qc.invalidateQueries({ queryKey: ['signage', slug] }), !preview)
+  const org = useOrg()
+  const connected = useSocket(
+    '/ws/signage',
+    (ev) => {
+      if (ev.type === 'organization.changed') useAuth.getState().reloadConfig()
+      else qc.invalidateQueries({ queryKey: ['signage', slug] })
+    },
+    !preview,
+  )
 
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 1000)
@@ -53,14 +64,15 @@ export function SignagePage() {
       <div className="relative flex min-h-screen flex-col gap-[1.4em] p-[1.6em]">
         {/* Header */}
         <header className="flex items-center gap-[1.2em]">
-          <div className="flex h-[3.2em] w-[3.2em] items-center justify-center rounded-2xl bg-teal-500 text-white shadow-lg shadow-teal-500/30">
-            <svg viewBox="0 0 64 64" className="h-[1.9em] w-[1.9em]">
-              <path d="M18 44 32 18l14 26" fill="none" stroke="currentColor" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />
-              <circle cx="32" cy="40" r="4" fill="currentColor" opacity=".7" />
-            </svg>
-          </div>
+          {org?.markUrl || org?.logoUrl ? (
+            <span className="flex h-[4em] w-[4em] shrink-0 items-center justify-center rounded-2xl bg-white p-[0.25em] shadow-lg shadow-black/20">
+              <img src={org.markUrl || org.logoUrl} alt={org.name} className="h-full w-full object-contain" />
+            </span>
+          ) : (
+            <ProductMark className="h-[3.2em] w-[3.2em]" />
+          )}
           <div>
-            <h1 className="text-[2em] font-extrabold leading-tight">{data?.building?.name ?? 'קהילה+'}</h1>
+            <h1 className="text-[2em] font-extrabold leading-tight">{data?.building?.name ?? (org ? org.name : PRODUCT.name)}</h1>
             <p className={clsx('text-[1em]', dark ? 'text-slate-400' : 'text-slate-500')}>{data?.screen?.welcomeText || 'מה קורה עכשיו במתנ״ס'}</p>
           </div>
           <div className="ms-auto flex items-center gap-[2em]">
@@ -140,7 +152,10 @@ export function SignagePage() {
         <footer className={clsx('flex items-center gap-3 text-[0.8em]', dark ? 'text-slate-500' : 'text-slate-400')}>
           {connected ? <Wifi className="h-4 w-4 text-emerald-400" /> : <WifiOff className="h-4 w-4 text-amber-400" />}
           {connected ? 'מתעדכן בזמן אמת' : preview ? 'תצוגה מקדימה' : 'מתחבר מחדש…'}
-          <span className="ms-auto">קהילה+ · שילוט דיגיטלי</span>
+          <span className="ms-auto flex items-center gap-2">
+            {org && <span>{org.name} ·</span>}
+            <ProductMark className="h-4 w-4" /> {PRODUCT.name} · שילוט דיגיטלי
+          </span>
           {!preview && slug && (
             <Link to="/login" className="flex items-center gap-1 rounded-lg px-2 py-1 hover:bg-white/10">
               <LogIn className="h-4 w-4" /> כניסה

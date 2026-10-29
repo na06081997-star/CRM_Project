@@ -356,3 +356,30 @@ func TestCoordinatorVisibilityAndActivityRoute(t *testing.T) {
 		t.Fatal("room must be free after approved cancellation")
 	}
 }
+
+func TestOrganizationBranding(t *testing.T) {
+	svc, st := setup(t)
+	ctx := context.Background()
+	org, err := svc.Organization(ctx)
+	if err != nil || org.ShortName != "מעלה רמות" || org.MarkURL == "" {
+		t.Fatalf("demo organization not seeded: %v %+v", err, org)
+	}
+	org.Name, org.BrandColor = "מתנ״ס חדש", "#1d4ed8"
+	if _, err := svc.SaveOrganization(ctx, actor(t, st, "maya@matnas.local"), org); !errors.Is(err, domain.ErrForbidden) {
+		t.Fatalf("a manager must not rebrand the system: %v", err)
+	}
+	owner := actor(t, st, "owner@matnas.local")
+	bad := org
+	bad.LogoURL, bad.BrandColor = "javascript:alert(1)", "red"
+	var ve *domain.ValidationError
+	if _, err := svc.SaveOrganization(ctx, owner, bad); !errors.As(err, &ve) || ve.Fields["logoUrl"] == "" || ve.Fields["brandColor"] == "" {
+		t.Fatalf("expected validation errors, got %v", err)
+	}
+	saved, err := svc.SaveOrganization(ctx, owner, org)
+	if err != nil || saved.Name != "מתנ״ס חדש" || saved.BrandColor != "#1d4ed8" {
+		t.Fatalf("save: %v %+v", err, saved)
+	}
+	if _, err := svc.Upload(ctx, actor(t, st, "yoav@matnas.local"), "organization", OrganizationEntityID, "x.png", "image/png", nil, 10); !errors.Is(err, domain.ErrForbidden) {
+		t.Fatalf("coordinators must not upload client logos: %v", err)
+	}
+}

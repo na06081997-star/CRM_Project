@@ -318,3 +318,19 @@ func (s *Server) deleteAnnouncement(w http.ResponseWriter, r *http.Request) {
 		return s.svc.DeleteAnnouncement(r.Context(), a, id)
 	})(w, r)
 }
+
+// ── Organization (client branding) ───────────────────────────
+
+func (s *Server) saveOrganization(w http.ResponseWriter, r *http.Request) {
+	var in domain.Organization
+	if err := decode(r, &in); err != nil {
+		fail(w, r, err)
+		return
+	}
+	o, err := s.svc.SaveOrganization(r.Context(), mustActor(r), in)
+	if err != nil {
+		fail(w, r, err)
+		return
+	}
+	ok(w, o)
+}

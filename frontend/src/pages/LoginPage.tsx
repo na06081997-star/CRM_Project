@@ -2,11 +2,12 @@ import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Monitor } from 'lucide-react'
 import { useState } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
-import { Logo } from '@/components/layout/Logo'
+import { Logo, PoweredBy, ProductMark } from '@/components/layout/Logo'
 import { toast } from '@/components/toast'
 import { Avatar, Button, Spinner } from '@/components/ui'
 import { api, errorMessage } from '@/lib/api'
 import { homeFor, useAuth } from '@/lib/auth'
+import { PRODUCT, useOrg } from '@/lib/brand'
 import { roleLabel, staffKindLabel } from '@/lib/labels'
 import type { Role, User } from '@/lib/types'
 
@@ -14,6 +15,7 @@ const ORDER: Role[] = ['super_admin', 'admin', 'coordinator', 'staff', 'user']
 
 export function LoginPage() {
   const { session, config, devLogin, googleLogin } = useAuth()
+  const org = useOrg()
   const nav = useNavigate()
   const loc = useLocation()
   const [busy, setBusy] = useState<string | null>(null)
@@ -30,12 +32,24 @@ export function LoginPage() {
   return (
     <div className="flex min-h-full">
       {/* Brand panel */}
-      <div className="relative hidden w-[46%] overflow-hidden bg-gradient-to-br from-teal-700 via-teal-800 to-slate-900 p-12 text-white lg:flex lg:flex-col">
+      <div
+        className="relative hidden w-[46%] overflow-hidden bg-gradient-to-br from-teal-700 via-teal-800 to-slate-900 p-12 text-white lg:flex lg:flex-col"
+        style={org?.brandColor ? { backgroundImage: `linear-gradient(135deg, ${org.brandColor}, #0f172a 85%)` } : undefined}
+      >
         <div className="absolute -start-24 -top-24 h-96 w-96 rounded-full bg-teal-400/20 blur-3xl" />
         <div className="absolute -bottom-32 -end-16 h-96 w-96 rounded-full bg-violet-500/20 blur-3xl" />
-        <div className="relative">
-          <p className="text-3xl font-extrabold">קהילה+</p>
-          <p className="text-teal-100/80">מערכת ניהול חכמה למתנ״סים</p>
+        <div className="relative flex items-center gap-4">
+          {org?.logoUrl || org?.markUrl ? (
+            <span className="flex h-28 w-28 shrink-0 items-center justify-center rounded-3xl bg-white p-2 shadow-xl shadow-black/20">
+              <img src={org.logoUrl || org.markUrl} alt={org.name} className="h-full w-full object-contain" />
+            </span>
+          ) : (
+            <ProductMark className="h-16 w-16" />
+          )}
+          <div>
+            <p className="text-3xl font-extrabold leading-tight">{org ? org.name : PRODUCT.name}</p>
+            <p className="text-teal-100/80">{org ? 'מערכת ניהול חללים, הזמנות ופעילויות' : PRODUCT.tagline}</p>
+          </div>
         </div>
         <div className="relative mt-auto max-w-md space-y-6">
           <h1 className="text-4xl font-bold leading-tight">כל החדרים, ההזמנות והפעילויות – במקום אחד.</h1>
@@ -49,6 +63,11 @@ export function LoginPage() {
             <Monitor className="h-4 w-4" /> צפייה בשילוט הציבורי
           </Link>
         </div>
+        {org && (
+          <p className="relative mt-10 flex items-center gap-2 text-xs text-white/60">
+            <ProductMark className="h-5 w-5" /> מופעל על ידי <b className="font-semibold text-white/85">{PRODUCT.name}</b> · {PRODUCT.tagline}
+          </p>
+        )}
       </div>
 
       {/* Login panel */}
@@ -132,6 +151,7 @@ export function LoginPage() {
             </div>
           )}
           {!config && <p className="mt-8 text-sm text-danger">השרת אינו זמין כרגע. נסו לרענן בעוד רגע.</p>}
+          <PoweredBy className="mt-10 justify-center lg:hidden" />
         </div>
       </div>
     </div>

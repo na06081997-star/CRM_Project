@@ -8,13 +8,15 @@ import { useAuth } from '@/lib/auth'
 import { money } from '@/lib/format'
 import { useBuildings, useEquipment } from '@/lib/queries'
 import type { Building, EquipmentItem } from '@/lib/types'
+import { BrandingCard } from './BrandingCard'
 
 export function SettingsPage() {
   const config = useAuth((s) => s.config)
   const health = useQuery({ queryKey: ['health'], queryFn: () => fetch('/api/health').then((r) => r.json() as Promise<Record<string, unknown>>) })
   return (
     <div className="space-y-6">
-      <PageHeader title="הגדרות מערכת" subtitle="מבנים ושעות פעילות, קטלוג ציוד ותמחור, מצב שירותים" />
+      <PageHeader title="הגדרות מערכת" subtitle="מיתוג הלקוח, מבנים ושעות פעילות, קטלוג ציוד ותמחור, מצב שירותים" />
+      <BrandingCard />
       <Buildings />
       <Equipment />
       <Card title="מצב מערכת">

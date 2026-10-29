@@ -362,8 +362,23 @@ export interface RoomAvailability {
   estimatedCost: number | null
 }
 
+export interface Organization {
+  name: string
+  shortName: string
+  subtitle: string
+  logoUrl: string
+  markUrl: string
+  brandColor: string
+  phone: string
+  email: string
+  website: string
+  address: string
+  updatedAt: string
+}
+
 export interface PublicConfig {
   appName: string
+  organization: Organization
   authMode: 'dev' | 'firebase'
   timezone: string
   version: string

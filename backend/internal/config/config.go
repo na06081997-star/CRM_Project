@@ -11,11 +11,19 @@ import (
 )
 
 type Config struct {
-	Env         string
-	AppName     string
-	HTTPAddr    string
-	CORSOrigins []string
-	Location    *time.Location
+	Env      string
+	AppName  string
+	HTTPAddr string
+
+	// Client branding used only to initialise an empty organization.
+	OrgName       string
+	OrgShortName  string
+	OrgSubtitle   string
+	OrgLogoURL    string
+	OrgMarkURL    string
+	OrgBrandColor string
+	CORSOrigins   []string
+	Location      *time.Location
 
 	DatabaseURL string
 	RedisURL    string
@@ -60,11 +68,18 @@ func Load() (*Config, error) {
 	}
 
 	c := &Config{
-		Env:         get("APP_ENV", "development"),
-		AppName:     get("APP_NAME", "קהילה+"),
-		HTTPAddr:    get("HTTP_ADDR", ":8080"),
-		CORSOrigins: list("CORS_ORIGINS"),
-		Location:    loc,
+		Env:      get("APP_ENV", "development"),
+		AppName:  get("APP_NAME", "קהילה+"),
+		HTTPAddr: get("HTTP_ADDR", ":8080"),
+
+		OrgName:       os.Getenv("ORG_NAME"),
+		OrgShortName:  os.Getenv("ORG_SHORT_NAME"),
+		OrgSubtitle:   os.Getenv("ORG_SUBTITLE"),
+		OrgLogoURL:    os.Getenv("ORG_LOGO_URL"),
+		OrgMarkURL:    os.Getenv("ORG_MARK_URL"),
+		OrgBrandColor: os.Getenv("ORG_BRAND_COLOR"),
+		CORSOrigins:   list("CORS_ORIGINS"),
+		Location:      loc,
 
 		DatabaseURL: os.Getenv("DATABASE_URL"),
 		RedisURL:    os.Getenv("REDIS_URL"),

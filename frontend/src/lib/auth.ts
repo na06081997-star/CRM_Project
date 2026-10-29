@@ -15,6 +15,7 @@ interface AuthState {
   config: PublicConfig | null
   session: Session | null
   init: () => Promise<void>
+  reloadConfig: () => Promise<void>
   devLogin: (email: string) => Promise<void>
   googleLogin: () => Promise<void>
   logout: () => Promise<void>
@@ -82,6 +83,11 @@ export const useAuth = create<AuthState>((set, get) => ({
       await get().refreshMe().catch(() => undefined)
     }
     set({ ready: true })
+  },
+
+  async reloadConfig() {
+    const config = await api.get<PublicConfig>('/public/config').catch(() => null)
+    if (config) set({ config })
   },
 
   async devLogin(email) {

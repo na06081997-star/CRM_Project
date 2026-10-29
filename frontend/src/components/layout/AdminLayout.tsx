@@ -34,7 +34,7 @@ import { useLiveInvalidation } from '@/lib/realtime'
 import type { BookingRequest, Notification, PaymentSummary } from '@/lib/types'
 import { Avatar, IconButton, Select } from '../ui'
 import { CommandPalette } from './CommandPalette'
-import { Logo } from './Logo'
+import { Logo, PoweredBy } from './Logo'
 
 interface NavItem {
   to: string
@@ -123,14 +123,14 @@ export function AdminLayout() {
   const sidebar = (
     <div className="flex h-full flex-col gap-5 p-4">
       <div className="flex items-center justify-between">
-        <Logo />
+        <Logo subtitle="ממשק ניהול" />
         <IconButton label="סגירה" className="lg:hidden" onClick={() => setSidebar(false)}>
           <X className="h-4 w-4" />
         </IconButton>
       </div>
       {buildings.length > 1 && (
         <div>
-          <span className="label">מתנ״ס פעיל</span>
+          <span className="label">מבנה פעיל</span>
           <Select value={buildingId ?? ''} onChange={(e) => setBuilding(e.target.value || null)}>
             <option value="">כל המבנים</option>
             {buildings.map((b) => (
@@ -150,6 +150,7 @@ export function AdminLayout() {
           {live ? 'מחובר בזמן אמת' : 'מתחבר…'} · פתיחת מסך לובי
         </a>
       </nav>
+      <PoweredBy className="border-t border-line px-3 pt-3" />
     </div>
   )
 

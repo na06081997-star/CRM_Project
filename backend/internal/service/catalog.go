@@ -219,9 +219,15 @@ var allowedTypes = map[string]bool{
 	"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":       true,
 }
 
-var allowedEntities = map[string]bool{"booking": true, "request": true, "room": true, "announcement": true, "customer": true, "task": true}
+var allowedEntities = map[string]bool{"booking": true, "request": true, "room": true, "announcement": true, "customer": true, "task": true, "organization": true}
 
 func (s *Service) Upload(ctx context.Context, actor Actor, entity string, entityID uuid.UUID, filename, contentType string, r io.Reader, size int64) (domain.Attachment, error) {
+	if entity == "organization" {
+		if err := actor.Require(domain.ActManageSettings); err != nil {
+			return domain.Attachment{}, err
+		}
+		entityID = OrganizationEntityID
+	}
 	// Portal users may attach files to their own requests only.
 	if !actor.Can(domain.ActUploadFiles) {
 		if entity != "request" {
@@ -266,7 +272,7 @@ func (s *Service) OpenFile(ctx context.Context, actor *Actor, id uuid.UUID) (dom
 	if err != nil {
 		return a, nil, storage.ObjectInfo{}, err
 	}
-	public := a.Entity == "announcement" || a.Entity == "room"
+	public := a.Entity == "announcement" || a.Entity == "room" || a.Entity == "organization"
 	if !public {
 		if actor == nil {
 			return a, nil, storage.ObjectInfo{}, domain.ErrUnauthorized

@@ -4,7 +4,7 @@ import { CalendarDays, CreditCard, HelpCircle, LayoutDashboard, LayoutGrid, List
 import { useEffect, type ReactNode } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { NotificationsBell } from '@/components/layout/AdminLayout'
-import { Logo } from '@/components/layout/Logo'
+import { Logo, PoweredBy } from '@/components/layout/Logo'
 import { toast } from '@/components/toast'
 import { Avatar, Button, IconButton } from '@/components/ui'
 import { api } from '@/lib/api'
@@ -110,6 +110,7 @@ export function PortalLayout() {
         </p>
         <p className="px-3 text-[11px] leading-relaxed text-muted">מוצגים רק הבקשות, הפעילויות והתשלומים שלך. ביומן מוצג לכולם רק פנוי / תפוס.</p>
       </nav>
+      <PoweredBy className="border-t border-line px-3 pt-3" />
     </div>
   )
 

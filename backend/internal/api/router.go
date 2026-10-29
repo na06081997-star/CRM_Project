@@ -60,6 +60,7 @@ func (s *Server) Routes() http.Handler {
 		r.Route("/api", func(r chi.Router) {
 			r.Get("/me", s.me)
 			r.Put("/me", s.updateMe)
+			r.Put("/organization", s.saveOrganization)
 			r.Get("/dashboard", s.dashboard)
 			r.Get("/reports", s.report)
 			r.Get("/availability", s.availability)
@@ -175,12 +176,18 @@ func (s *Server) health(w http.ResponseWriter, r *http.Request) {
 	ok(w, status)
 }
 
-func (s *Server) publicConfig(w http.ResponseWriter, _ *http.Request) {
+func (s *Server) publicConfig(w http.ResponseWriter, r *http.Request) {
+	org, err := s.svc.Organization(r.Context())
+	if err != nil {
+		fail(w, r, err)
+		return
+	}
 	ok(w, map[string]any{
-		"appName":  s.cfg.AppName,
-		"authMode": s.cfg.AuthMode,
-		"timezone": s.cfg.Location.String(),
-		"version":  s.version,
+		"appName":      s.cfg.AppName,
+		"organization": org,
+		"authMode":     s.cfg.AuthMode,
+		"timezone":     s.cfg.Location.String(),
+		"version":      s.version,
 		"firebase": map[string]string{
 			"apiKey": s.cfg.FirebaseAPIKey, "authDomain": s.cfg.FirebaseAuthDomain,
 			"projectId": s.cfg.FirebaseProjectID, "appId": s.cfg.FirebaseAppID,

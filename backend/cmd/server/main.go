@@ -83,6 +83,9 @@ func run() error {
 	dispatcher := notify.NewDispatcher(cfg, st)
 	svc := service.New(cfg, st, hub, dispatcher, files)
 
+	if err := svc.BootstrapOrganization(ctx); err != nil {
+		return fmt.Errorf("organization: %w", err)
+	}
 	if !cfg.IsProduction() || os.Getenv("SEED_DEMO") == "true" {
 		if err := svc.SeedDemo(ctx); err != nil {
 			return fmt.Errorf("seed: %w", err)

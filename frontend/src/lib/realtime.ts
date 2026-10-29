@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { getToken } from './api'
+import { useAuth } from './auth'
 
 export interface RealtimeEvent {
   type: string
@@ -75,6 +76,7 @@ export function useLiveInvalidation(enabled: boolean) {
     '/ws',
     (ev) => {
       for (const key of invalidations[ev.type] || []) qc.invalidateQueries({ queryKey: key })
+      if (ev.type === 'organization.changed') useAuth.getState().reloadConfig()
     },
     enabled,
   )

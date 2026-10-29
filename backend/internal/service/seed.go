@@ -15,6 +15,16 @@ import (
 // SeedDemo fills an empty database with a realistic Hebrew demo matnas,
 // anchored on the current week so the calendar and signage look alive.
 func (s *Service) SeedDemo(ctx context.Context) error {
+	if o, err := s.store.Organization(ctx); err != nil {
+		return err
+	} else if o.Name == "" {
+		o.Name, o.ShortName, o.Subtitle = "מינהל קהילתי מעלה רמות", "מעלה רמות", "מינהל קהילתי"
+		o.LogoURL, o.MarkURL = "/brand/clients/maale-ramot.png", "/brand/clients/maale-ramot-mark.png"
+		o.Address = "רמות, ירושלים"
+		if _, err := s.store.SaveOrganization(ctx, o); err != nil {
+			return err
+		}
+	}
 	n, err := s.store.CountUsers(ctx)
 	if err != nil || n > 0 {
 		return err
@@ -108,7 +118,7 @@ func (sd *seeder) run(today time.Time) {
 	}
 
 	// ── Facilities ──
-	main, err := tx.CreateBuilding(ctx, domain.Building{Name: "מתנ״ס נווה אורנים", Address: "רחוב האורנים 12", OpensAt: "07:00", ClosesAt: "23:00"})
+	main, err := tx.CreateBuilding(ctx, domain.Building{Name: "המרכז הקהילתי מעלה רמות", Address: "רמות, ירושלים", OpensAt: "07:00", ClosesAt: "23:00"})
 	if sd.err = err; err != nil {
 		return
 	}
@@ -147,7 +157,7 @@ func (sd *seeder) run(today time.Time) {
 	school := sd.customer("בית ספר אלון", "organization", "מנהלת: אורנה", "03-5550202", "alon@school.org.il", nil)
 	golan := sd.customer("משפחת גולן", "private", "רונית גולן", "050-9990000", "ronit.golan@example.com", nil)
 	danaC := sd.customer("דנה מזרחי", "private", "דנה מזרחי", "050-7777777", "dana@example.com", &dana.ID)
-	internal := sd.customer("הנהלת המתנ״ס", "internal", "מאיה שגיא", "050-1111111", "maya@matnas.local", nil)
+	internal := sd.customer("הנהלת המינהל", "internal", "מאיה שגיא", "050-1111111", "maya@matnas.local", nil)
 	if sd.err != nil {
 		return
 	}
@@ -297,11 +307,11 @@ func (sd *seeder) run(today time.Time) {
 
 	// ── Signage ──
 	if _, sd.err = tx.SaveScreen(ctx, domain.SignageScreen{Slug: "lobby", Name: "מסך לובי ראשי", BuildingID: &main.ID, Theme: "dark",
-		WelcomeText: "ברוכים הבאים למתנ״ס נווה אורנים", RotateSeconds: 12, IsActive: true}); sd.err != nil {
+		WelcomeText: "ברוכים הבאים למינהל הקהילתי מעלה רמות", RotateSeconds: 12, IsActive: true}); sd.err != nil {
 		return
 	}
 	if _, sd.err = tx.SaveScreen(ctx, domain.SignageScreen{Slug: "music", Name: "מסך בית המוזיקה", BuildingID: &music.ID, Theme: "light",
-		WelcomeText: "בית המוזיקה – נווה אורנים", RotateSeconds: 15, IsActive: true}); sd.err != nil {
+		WelcomeText: "בית המוזיקה – מעלה רמות", RotateSeconds: 15, IsActive: true}); sd.err != nil {
 		return
 	}
 	for _, a := range []domain.Announcement{

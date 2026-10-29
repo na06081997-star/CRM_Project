@@ -58,6 +58,22 @@ type Customer struct {
 	TotalPaid     float64 `json:"totalPaid"`
 }
 
+// Organization is the client (the matnas) this deployment serves. The product
+// brand is fixed; the client's name, logo and colour are editable.
+type Organization struct {
+	Name       string    `json:"name"`
+	ShortName  string    `json:"shortName"`
+	Subtitle   string    `json:"subtitle"`
+	LogoURL    string    `json:"logoUrl"` // full logo (login, signage)
+	MarkURL    string    `json:"markUrl"` // square emblem (sidebar, favicon)
+	BrandColor string    `json:"brandColor"`
+	Phone      string    `json:"phone"`
+	Email      string    `json:"email"`
+	Website    string    `json:"website"`
+	Address    string    `json:"address"`
+	UpdatedAt  time.Time `json:"updatedAt"`
+}
+
 type Building struct {
 	ID       uuid.UUID `json:"id"`
 	Name     string    `json:"name"`

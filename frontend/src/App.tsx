@@ -3,6 +3,7 @@ import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { AdminLayout } from './components/layout/AdminLayout'
 import { PageLoader } from './components/ui'
 import { homeFor, useAuth } from './lib/auth'
+import { useDocumentBranding } from './lib/brand'
 import { LoginPage } from './pages/LoginPage'
 
 const Dashboard = lazy(() => import('./pages/admin/DashboardPage').then((m) => ({ default: m.DashboardPage })))
@@ -46,6 +47,7 @@ function Home() {
 
 export function App() {
   const { ready, init } = useAuth()
+  useDocumentBranding()
   useEffect(() => {
     init()
   }, [init])

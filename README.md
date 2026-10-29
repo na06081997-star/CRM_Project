@@ -33,6 +33,17 @@ Also: customers (with history & balances), coordinators workload, activities (ח
 
 A pending request never blocks a room; only approved bookings and maintenance blocks do. A cancellation request keeps the room blocked until the manager approves it. The public lobby screen (`/` → `/signage`) has a "כניסה למערכת" button; each user signs in with their own account and lands on their own area.
 
+## Branding: our product vs. the client
+
+Two identities live side by side:
+
+| | Who | Where it shows | How to change it |
+| --- | --- | --- | --- |
+| **Product** | קהילה+ (us) | small "מופעל על ידי" credit in the sidebars, login and signage footer; default favicon | `frontend/src/lib/brand.ts` (`PRODUCT`) + `APP_NAME` |
+| **Client** | the matnas, e.g. מינהל קהילתי מעלה רמות | sidebar header, login hero, signage header, tab title & icon, optional brand colour for the whole UI | super admin → **הגדרות מערכת → מיתוג הארגון** (name, short name, full logo, square emblem, colour, contact), or `ORG_*` in `.env` for the first boot |
+
+Each client runs its own deployment (own domain, database and files) from the same image, so data never mixes between matnasim. A new client = a new Dokploy app with its own `.env`. Its branding can be set either through `ORG_*` or later in the settings screen. Logos uploaded in the settings go to Garage S3. Demo logos live in `frontend/public/brand/clients/`.
+
 ## Architecture
 
 ```

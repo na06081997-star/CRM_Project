@@ -119,3 +119,26 @@ func (s *Store) ListAudit(ctx context.Context, f AuditFilter) ([]domain.AuditEnt
 		return e, err
 	})
 }
+
+// ── Organization (client branding) ───────────────────────────
+
+const orgCols = `name, short_name, subtitle, logo_url, mark_url, brand_color, phone, email, website, address, updated_at`
+
+func scanOrg(r pgx.Row) (domain.Organization, error) {
+	var o domain.Organization
+	err := r.Scan(&o.Name, &o.ShortName, &o.Subtitle, &o.LogoURL, &o.MarkURL, &o.BrandColor,
+		&o.Phone, &o.Email, &o.Website, &o.Address, &o.UpdatedAt)
+	return o, mapErr(err)
+}
+
+func (s *Store) Organization(ctx context.Context) (domain.Organization, error) {
+	return scanOrg(s.q.QueryRow(ctx, `SELECT `+orgCols+` FROM organization`))
+}
+
+func (s *Store) SaveOrganization(ctx context.Context, o domain.Organization) (domain.Organization, error) {
+	return scanOrg(s.q.QueryRow(ctx, `
+		UPDATE organization SET name = $1, short_name = $2, subtitle = $3, logo_url = $4, mark_url = $5,
+			brand_color = $6, phone = $7, email = $8, website = $9, address = $10, updated_at = now()
+		RETURNING `+orgCols,
+		o.Name, o.ShortName, o.Subtitle, o.LogoURL, o.MarkURL, o.BrandColor, o.Phone, o.Email, o.Website, o.Address))
+}
