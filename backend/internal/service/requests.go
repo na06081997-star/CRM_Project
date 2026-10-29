@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/na06081997-star/CRM_Project/backend/internal/domain"
+	"github.com/na06081997-star/CRM_Project/backend/internal/notify"
 	"github.com/na06081997-star/CRM_Project/backend/internal/realtime"
 	"github.com/na06081997-star/CRM_Project/backend/internal/store"
 )
@@ -24,6 +25,7 @@ type RequestInput struct {
 	Equipment []string  `json:"equipment"`
 	Notes     string    `json:"notes"`
 	Phone     string    `json:"phone"`
+	Name      string    `json:"name"` // שם המזמין (defaults to the profile name)
 	// Route: "rental" (paid, default) or "activity" (פעילות באמצעות רכז).
 	Route       string     `json:"route"`
 	ActivityID  *uuid.UUID `json:"activityId"`
@@ -78,6 +80,16 @@ func (s *Service) SubmitRequest(ctx context.Context, actor Actor, in RequestInpu
 	if in.Title == "" {
 		v.Add("title", "יש להזין שם לאירוע")
 	}
+	in.Name, in.Phone = strings.TrimSpace(in.Name), strings.TrimSpace(in.Phone)
+	if in.Name == "" {
+		in.Name = actor.User.FullName
+	}
+	if in.Phone == "" && actor.User.Phone != nil {
+		in.Phone = *actor.User.Phone
+	}
+	if p := notify.NormalizeIsraeliPhone(in.Phone); len(p) < 12 || len(p) > 13 {
+		v.Add("phone", "יש להזין מספר טלפון תקין")
+	}
 	if err := domain.ValidateWindow(in.StartsAt, in.EndsAt); err != nil {
 		var ve *domain.ValidationError
 		errors.As(err, &ve)
@@ -131,7 +143,7 @@ func (s *Service) SubmitRequest(ctx context.Context, actor Actor, in RequestInpu
 		UserID: actor.User.ID, CustomerID: customerID, RoomID: room.ID, Title: in.Title, EventKind: in.EventKind,
 		StartsAt: in.StartsAt, EndsAt: in.EndsAt, Attendees: in.Attendees, Equipment: in.Equipment,
 		Notes: in.Notes, QuotedPrice: quote.Total, Route: in.Route, ActivityID: in.ActivityID,
-		TablesCount: in.TablesCount, ChairsCount: in.ChairsCount,
+		TablesCount: in.TablesCount, ChairsCount: in.ChairsCount, ContactName: in.Name, ContactPhone: in.Phone,
 	})
 	if err != nil {
 		return domain.BookingRequest{}, err

@@ -155,8 +155,6 @@ export function homeFor(role: Role) {
     case 'super_admin':
     case 'admin':
       return '/admin'
-    case 'coordinator':
-      return '/rakaz'
     case 'staff':
       return '/staff'
     default:

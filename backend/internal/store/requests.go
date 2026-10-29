@@ -11,10 +11,11 @@ import (
 )
 
 const requestSelect = `
-	SELECT q.id, q.user_id, q.customer_id, q.room_id, q.route, q.activity_id, q.tables_count, q.chairs_count, q.title, q.event_kind, q.starts_at, q.ends_at, q.attendees,
+	SELECT q.id, q.number, q.contact_name, q.contact_phone, q.user_id, q.customer_id, q.room_id, q.route, q.activity_id, q.tables_count, q.chairs_count, q.title, q.event_kind, q.starts_at, q.ends_at, q.attendees,
 	       q.equipment, q.notes, q.status, q.quoted_price, q.final_price, q.internal_notes, q.rejection_reason,
 	       q.reviewed_by, q.reviewed_at, q.booking_id, q.created_at,
 	       r.name, u.full_name, u.email, u.phone, u.role, a.name, bk.status::text, (bk.cancel_requested_at IS NOT NULL),
+	       bk.price, COALESCE(pay.total, 0), pay.method, pay.last_at,
 	       (q.status = 'pending' AND EXISTS (
 	            SELECT 1 FROM bookings b
 	            WHERE b.room_id = q.room_id AND b.status IN ('pending', 'confirmed')
@@ -23,15 +24,20 @@ const requestSelect = `
 	JOIN rooms r ON r.id = q.room_id
 	JOIN users u ON u.id = q.user_id
 	LEFT JOIN activities a ON a.id = q.activity_id
-	LEFT JOIN bookings bk ON bk.id = q.booking_id`
+	LEFT JOIN bookings bk ON bk.id = q.booking_id
+	LEFT JOIN LATERAL (
+	    SELECT sum(p.amount) AS total, max(p.paid_at) AS last_at,
+	           (SELECT p2.method::text FROM payments p2 WHERE p2.booking_id = bk.id ORDER BY p2.paid_at DESC LIMIT 1) AS method
+	    FROM payments p WHERE p.booking_id = bk.id
+	) pay ON true`
 
 func scanRequest(r pgx.Row) (domain.BookingRequest, error) {
 	var q domain.BookingRequest
-	err := r.Scan(&q.ID, &q.UserID, &q.CustomerID, &q.RoomID, &q.Route, &q.ActivityID, &q.TablesCount, &q.ChairsCount, &q.Title, &q.EventKind, &q.StartsAt, &q.EndsAt,
+	err := r.Scan(&q.ID, &q.Number, &q.ContactName, &q.ContactPhone, &q.UserID, &q.CustomerID, &q.RoomID, &q.Route, &q.ActivityID, &q.TablesCount, &q.ChairsCount, &q.Title, &q.EventKind, &q.StartsAt, &q.EndsAt,
 		&q.Attendees, &q.Equipment, &q.Notes, &q.Status, &q.QuotedPrice, &q.FinalPrice, &q.InternalNotes,
 		&q.RejectionReason, &q.ReviewedBy, &q.ReviewedAt, &q.BookingID, &q.CreatedAt,
 		&q.RoomName, &q.RequesterName, &q.RequesterEmail, &q.RequesterPhone, &q.RequesterRole, &q.ActivityName,
-		&q.BookingStatus, &q.CancelRequested, &q.HasConflict)
+		&q.BookingStatus, &q.CancelRequested, &q.BookingPrice, &q.PaidAmount, &q.PaymentMethod, &q.PaidAt, &q.HasConflict)
 	return q, mapErr(err)
 }
 
@@ -75,10 +81,11 @@ func (s *Store) CreateRequest(ctx context.Context, q domain.BookingRequest) (dom
 	var id uuid.UUID
 	err := s.q.QueryRow(ctx, `
 		INSERT INTO booking_requests (user_id, customer_id, room_id, title, event_kind, starts_at, ends_at,
-		                              attendees, equipment, notes, quoted_price, route, activity_id, tables_count, chairs_count)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING id`,
+		                              attendees, equipment, notes, quoted_price, route, activity_id, tables_count, chairs_count,
+		                              contact_name, contact_phone)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) RETURNING id`,
 		q.UserID, q.CustomerID, q.RoomID, q.Title, q.EventKind, q.StartsAt, q.EndsAt, q.Attendees,
-		nonNil(q.Equipment), q.Notes, q.QuotedPrice, q.Route, q.ActivityID, q.TablesCount, q.ChairsCount).Scan(&id)
+		nonNil(q.Equipment), q.Notes, q.QuotedPrice, q.Route, q.ActivityID, q.TablesCount, q.ChairsCount, q.ContactName, q.ContactPhone).Scan(&id)
 	if err != nil {
 		return domain.BookingRequest{}, mapErr(err)
 	}

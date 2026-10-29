@@ -315,7 +315,7 @@ function EventBlock({
         st.border,
         b.status === 'pending' && 'border border-dashed',
         b.status === 'cancelled' && 'opacity-50 line-through',
-        lens === 'coordinator' && !mine && 'opacity-40',
+        lens === 'coordinator' && !mine && 'opacity-60 saturate-50',
         dimmed && 'opacity-30',
         focused && 'ring-2 ring-brand ring-offset-1',
       )}

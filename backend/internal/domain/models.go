@@ -182,7 +182,10 @@ const (
 
 type BookingRequest struct {
 	ID              uuid.UUID     `json:"id"`
+	Number          int64         `json:"number"`
 	UserID          uuid.UUID     `json:"userId"`
+	ContactName     string        `json:"contactName"`
+	ContactPhone    string        `json:"contactPhone"`
 	CustomerID      *uuid.UUID    `json:"customerId"`
 	RoomID          uuid.UUID     `json:"roomId"`
 	Route           string        `json:"route"` // rental | activity
@@ -215,6 +218,11 @@ type BookingRequest struct {
 	// State of the booking created on approval
 	BookingStatus   *string `json:"bookingStatus"`
 	CancelRequested bool    `json:"cancelRequested"`
+	// Payment state of the approved booking (owner and managers only)
+	BookingPrice  *float64   `json:"bookingPrice"`
+	PaidAmount    float64    `json:"paidAmount"`
+	PaymentMethod *string    `json:"paymentMethod"`
+	PaidAt        *time.Time `json:"paidAt"`
 	// Computed at read time for pending requests
 	HasConflict bool `json:"hasConflict"`
 }

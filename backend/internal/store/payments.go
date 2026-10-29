@@ -30,6 +30,8 @@ type PaymentFilter struct {
 	Method     string
 	From, To   time.Time
 	Limit      int
+	// OwnerUserID: payments of bookings the user runs or booked.
+	OwnerUserID *uuid.UUID
 }
 
 func (s *Store) ListPayments(ctx context.Context, f PaymentFilter) ([]domain.Payment, error) {
@@ -39,6 +41,10 @@ func (s *Store) ListPayments(ctx context.Context, f PaymentFilter) ([]domain.Pay
 	}
 	if f.CustomerID != nil {
 		w.add("b.customer_id = $%d", *f.CustomerID)
+	}
+	if f.OwnerUserID != nil {
+		p := w.next(*f.OwnerUserID)
+		w.raw("(b.coordinator_id = " + p + " OR cu.user_id = " + p + ")")
 	}
 	if f.Method != "" {
 		w.add("p.method = $%d", f.Method)

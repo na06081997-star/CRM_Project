@@ -81,10 +81,10 @@ func (in *BookingInput) normalize() error {
 func (s *Service) ListBookings(ctx context.Context, actor Actor, f store.BookingFilter) ([]domain.Booking, error) {
 	switch {
 	case actor.Can(domain.ActViewCalendar):
-	case actor.Can(domain.ActRequestActivity):
-		// Coordinators list only the bookings they run.
+	case actor.Can(domain.ActSubmitRequest):
+		// Coordinators and portal users list only their own bookings.
 		me := actor.User.ID
-		f.CoordinatorID = &me
+		f.OwnerUserID = &me
 	default:
 		return nil, domain.ErrForbidden
 	}

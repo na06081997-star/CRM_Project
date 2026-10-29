@@ -51,7 +51,7 @@ var rolePermissions = map[Role]map[Action]bool{
 	// calendar shows; sees only their own requests and bookings.
 	RoleCoordinator: set(ActViewAvailability, ActSubmitRequest, ActRequestActivity, ActUploadFiles),
 	RoleStaff:       set(ActWorkTasks, ActViewAvailability),
-	RoleUser:        set(ActSubmitRequest),
+	RoleUser:        set(ActSubmitRequest, ActViewAvailability),
 }
 
 // Can reports whether a role is allowed to perform an action.

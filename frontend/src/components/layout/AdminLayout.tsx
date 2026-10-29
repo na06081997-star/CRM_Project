@@ -95,7 +95,7 @@ export function AdminLayout() {
   const extra: NavItem[] = [
     { to: '/admin/tasks', label: 'משימות תפעול', icon: <ListChecks />, perm: 'tasks:manage' },
     { to: '/admin/signage', label: 'שילוט דיגיטלי', icon: <Monitor />, perm: 'signage:manage' },
-    { to: '/rakaz', label: 'תצוגת רכז (הדגמה)', icon: <UserCog />, perm: 'requests:review' },
+    { to: '/portal', label: 'פורטל רכזים (הדגמה)', icon: <UserCog />, perm: 'requests:review' },
     { to: '/staff', label: 'אפליקציית צוות', icon: <ListChecks />, perm: 'tasks:manage' },
   ]
 

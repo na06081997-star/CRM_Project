@@ -27,9 +27,9 @@ Also: customers (with history & balances), coordinators workload, activities (ח
 | --- | --- | --- |
 | **מנהל־על** (`super_admin`) | `/admin` | Everything, incl. users & permissions and system settings (buildings, equipment) |
 | **מנהל מתנ״ס** (`admin`) | `/admin` | Approves / rejects every coordinator's and customer's request, global calendar, rooms & pricing, all payments, cancellations, staff tasks, signage |
-| **רכז** (`coordinator`) | `/rakaz` | Availability calendar (free / busy — others only show type + coordinator, never customers, prices or notes), requests slots for their activities ("פעילות באמצעות רכז"), sees only their own requests & activities, asks for cancellations |
+| **רכז** (`coordinator`) | `/portal` | Full CRM workspace scoped to themselves: dashboard, availability calendar in every view (day / week / month / year / by room / by coordinator — others only show type + coordinator name, never customers, prices or notes), room search, 3-step request wizard with request number, own requests with approval, payment status and timeline, own activities, own payments, cancellation requests |
 | **צוות** (`staff`) | `/staff` | Own tasks, "בוצע" with note, reminders |
-| **משתמש** (`user`) | `/portal` | Search free rooms, paid rental requests, own requests, cancellation requests |
+| **משתמש** (`user`) | `/portal` | Same workspace for paid rentals; the calendar shows only free / busy |
 
 A pending request never blocks a room; only approved bookings and maintenance blocks do. A cancellation request keeps the room blocked until the manager approves it. The public lobby screen (`/` → `/signage`) has a "כניסה למערכת" button; each user signs in with their own account and lands on their own area.
 

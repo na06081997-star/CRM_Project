@@ -55,9 +55,9 @@ func (s *Service) Availability(ctx context.Context, actor Actor, from, to time.T
 	if !actor.Can(domain.ActViewAvailability) && !actor.Can(domain.ActViewCalendar) {
 		return nil, domain.ErrForbidden
 	}
-	if to.Sub(from) > 62*24*time.Hour || !to.After(from) {
+	if to.Sub(from) > 400*24*time.Hour || !to.After(from) {
 		v := domain.NewValidation()
-		v.Add("to", "טווח תאריכים לא תקין (עד חודשיים)")
+		v.Add("to", "טווח תאריכים לא תקין (עד שנה)")
 		return nil, v
 	}
 	bookings, err := s.store.ListBookings(ctx, store.BookingFilter{
@@ -67,9 +67,15 @@ func (s *Service) Availability(ctx context.Context, actor Actor, from, to time.T
 		return nil, err
 	}
 	me := actor.User.ID
+	var myCustomer *uuid.UUID
+	if c, err := s.store.CustomerByUserID(ctx, me); err == nil {
+		myCustomer = &c.ID
+	}
+	// Coordinators see type + coordinator name; portal users only free / busy.
+	named := actor.Can(domain.ActRequestActivity)
 	out := make([]Block, 0, len(bookings))
 	for _, b := range bookings {
-		mine := b.CoordinatorID != nil && *b.CoordinatorID == me
+		mine := (b.CoordinatorID != nil && *b.CoordinatorID == me) || (myCustomer != nil && b.CustomerID != nil && *b.CustomerID == *myCustomer)
 		blk := Block{
 			ID: b.ID.String(), RoomID: b.RoomID, RoomName: b.RoomName, BuildingID: b.BuildingID,
 			StartsAt: b.StartsAt, EndsAt: b.EndsAt, Type: b.Type, Status: b.Status, Mine: mine,
@@ -77,11 +83,18 @@ func (s *Service) Availability(ctx context.Context, actor Actor, from, to time.T
 		}
 		if mine || actor.Can(domain.ActViewCalendar) {
 			blk.Title = b.Title
-		} else {
+		} else if named {
 			blk.Title = blockLabel(b)
 			blk.SeriesID = nil
 			if b.Type == domain.BookingMaintenance || b.Type == domain.BookingClosed {
 				blk.CoordinatorName = nil
+			}
+		} else {
+			blk.SeriesID, blk.CoordinatorName = nil, nil
+			if b.Type == domain.BookingMaintenance || b.Type == domain.BookingClosed {
+				blk.Title, blk.Type = "לא זמין", domain.BookingClosed
+			} else {
+				blk.Title, blk.Type = "תפוס", domain.BookingInternal
 			}
 		}
 		out = append(out, blk)

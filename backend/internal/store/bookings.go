@@ -46,7 +46,9 @@ type BookingFilter struct {
 	Search          string
 	OnlyWithBalance bool
 	CancelRequested bool
-	Limit           int
+	// OwnerUserID limits to bookings the user runs (coordinator) or booked (portal customer).
+	OwnerUserID *uuid.UUID
+	Limit       int
 }
 
 func (s *Store) ListBookings(ctx context.Context, f BookingFilter) ([]domain.Booking, error) {
@@ -68,6 +70,10 @@ func (s *Store) ListBookings(ctx context.Context, f BookingFilter) ([]domain.Boo
 	}
 	if f.CustomerID != nil {
 		w.add("b.customer_id = $%d", *f.CustomerID)
+	}
+	if f.OwnerUserID != nil {
+		p := w.next(*f.OwnerUserID)
+		w.raw("(b.coordinator_id = " + p + " OR cu.user_id = " + p + ")")
 	}
 	if f.ActivityID != nil {
 		w.add("b.activity_id = $%d", *f.ActivityID)

@@ -23,8 +23,12 @@ type PaymentInput struct {
 }
 
 func (s *Service) ListPayments(ctx context.Context, actor Actor, f store.PaymentFilter) ([]domain.Payment, error) {
-	if err := actor.Require(domain.ActViewPayments); err != nil {
-		return nil, err
+	if !actor.Can(domain.ActViewPayments) {
+		if !actor.Can(domain.ActSubmitRequest) {
+			return nil, domain.ErrForbidden
+		}
+		me := actor.User.ID // own payments only
+		f.OwnerUserID, f.CustomerID = &me, nil
 	}
 	return s.store.ListPayments(ctx, f)
 }
@@ -39,10 +43,21 @@ func (s *Service) PaymentSummary(ctx context.Context, actor Actor) (store.Paymen
 
 // Balances lists bookings that still have money due.
 func (s *Service) Balances(ctx context.Context, actor Actor, customerID *uuid.UUID) ([]domain.Booking, error) {
-	if err := actor.Require(domain.ActViewPayments); err != nil {
-		return nil, err
+	f := store.BookingFilter{OnlyWithBalance: true, CustomerID: customerID}
+	if !actor.Can(domain.ActViewPayments) {
+		if !actor.Can(domain.ActSubmitRequest) {
+			return nil, domain.ErrForbidden
+		}
+		me := actor.User.ID
+		f.OwnerUserID, f.CustomerID = &me, nil
 	}
-	return s.store.ListBookings(ctx, store.BookingFilter{OnlyWithBalance: true, CustomerID: customerID})
+	list, err := s.store.ListBookings(ctx, f)
+	if err == nil && !actor.Can(domain.ActManageBookings) {
+		for i := range list {
+			list[i].InternalNotes = ""
+		}
+	}
+	return list, err
 }
 
 func (s *Service) RecordPayment(ctx context.Context, actor Actor, in PaymentInput) (domain.Payment, error) {

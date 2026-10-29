@@ -121,6 +121,9 @@ export interface Booking {
 
 export interface BookingRequest {
   id: ID
+  number: number
+  contactName: string
+  contactPhone: string
   userId: ID
   customerId: ID | null
   roomId: ID
@@ -152,6 +155,10 @@ export interface BookingRequest {
   activityName: string | null
   bookingStatus: BookingStatus | null
   cancelRequested: boolean
+  bookingPrice: number | null
+  paidAmount: number
+  paymentMethod: PaymentMethod | null
+  paidAt: string | null
   hasConflict: boolean
 }
 

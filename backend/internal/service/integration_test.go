@@ -271,8 +271,15 @@ func TestCoordinatorVisibilityAndActivityRoute(t *testing.T) {
 	if _, err := svc.Dashboard(ctx, yoav, nil); !errors.Is(err, domain.ErrForbidden) {
 		t.Fatal("coordinator must not see the dashboard")
 	}
-	if _, err := svc.ListPayments(ctx, yoav, store.PaymentFilter{}); !errors.Is(err, domain.ErrForbidden) {
-		t.Fatal("coordinator must not see payments")
+	// Payments: only those of bookings the coordinator runs (none in the seed).
+	if pays, err := svc.ListPayments(ctx, yoav, store.PaymentFilter{}); err != nil || len(pays) != 0 {
+		t.Fatalf("coordinator must only see own payments: %v %d", err, len(pays))
+	}
+	if all, _ := svc.ListPayments(ctx, admin, store.PaymentFilter{}); len(all) == 0 {
+		t.Fatal("seed should contain payments")
+	}
+	if bal, err := svc.Balances(ctx, yoav, nil); err != nil || len(bal) != 0 {
+		t.Fatalf("coordinator balances: %v %d", err, len(bal))
 	}
 	// Bookings list is forced to their own, without money.
 	list, err := svc.ListBookings(ctx, yoav, store.BookingFilter{From: now.AddDate(0, 0, -7), To: now.AddDate(0, 0, 14)})

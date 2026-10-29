@@ -25,7 +25,7 @@ func TestCan(t *testing.T) {
 		{RoleStaff, ActManageBookings, false},
 		{RoleUser, ActSubmitRequest, true},
 		{RoleUser, ActRequestActivity, false},
-		{RoleUser, ActViewAvailability, false},
+		{RoleUser, ActViewAvailability, true},
 		{Role("hacker"), ActSubmitRequest, false},
 	}
 	for _, tt := range tests {
@@ -46,7 +46,7 @@ func TestPermissionsListMatchesCan(t *testing.T) {
 	if len(Permissions(RoleSuperAdmin)) != len(allActions) {
 		t.Error("super admin must hold every permission")
 	}
-	if len(Permissions(RoleUser)) != 1 {
-		t.Errorf("user should have exactly one permission, got %v", Permissions(RoleUser))
+	if len(Permissions(RoleUser)) != 2 {
+		t.Errorf("user should have exactly two permissions, got %v", Permissions(RoleUser))
 	}
 }

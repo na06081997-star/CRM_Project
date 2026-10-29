@@ -18,8 +18,16 @@ const Users = lazy(() => import('./pages/admin/UsersPage').then((m) => ({ defaul
 const Settings = lazy(() => import('./pages/admin/SettingsPage').then((m) => ({ default: m.SettingsPage })))
 const Tasks = lazy(() => import('./pages/admin/TasksPage').then((m) => ({ default: m.TasksPage })))
 const SignageAdmin = lazy(() => import('./pages/admin/SignageAdminPage').then((m) => ({ default: m.SignageAdminPage })))
-const Portal = lazy(() => import('./pages/portal/PortalPage').then((m) => ({ default: m.PortalPage })))
-const Rakaz = lazy(() => import('./pages/rakaz/RakazPage').then((m) => ({ default: m.RakazPage })))
+const PortalLayout = lazy(() => import('./pages/portal/PortalLayout').then((m) => ({ default: m.PortalLayout })))
+const PortalHome = lazy(() => import('./pages/portal/HomePage').then((m) => ({ default: m.HomePage })))
+const PortalSearch = lazy(() => import('./pages/portal/SearchPage').then((m) => ({ default: m.SearchPage })))
+const PortalRoom = lazy(() => import('./pages/portal/RoomPage').then((m) => ({ default: m.RoomPage })))
+const PortalNewRequest = lazy(() => import('./pages/portal/NewRequestPage').then((m) => ({ default: m.NewRequestPage })))
+const PortalRequests = lazy(() => import('./pages/portal/RequestsPage').then((m) => ({ default: m.RequestsPage })))
+const PortalBookings = lazy(() => import('./pages/portal/BookingsPage').then((m) => ({ default: m.BookingsPage })))
+const PortalPayments = lazy(() => import('./pages/portal/PaymentsPage').then((m) => ({ default: m.PaymentsPage })))
+const PortalHelp = lazy(() => import('./pages/portal/HelpPage').then((m) => ({ default: m.HelpPage })))
+const PortalCalendar = lazy(() => import('./pages/calendar/CalendarPage').then((m) => ({ default: () => <m.CalendarPage mode="portal" /> })))
 const Staff = lazy(() => import('./pages/staff/StaffPage').then((m) => ({ default: m.StaffPage })))
 const Signage = lazy(() => import('./pages/signage/SignagePage').then((m) => ({ default: m.SignagePage })))
 
@@ -80,22 +88,25 @@ export function App() {
           <Route path="signage" element={<SignageAdmin />} />
         </Route>
 
+        <Route path="/rakaz/*" element={<Navigate to="/portal" replace />} />
         <Route
-          path="/rakaz/*"
+          path="/portal"
           element={
-            <RequireAuth roles={['coordinator', 'admin', 'super_admin']}>
-              <Rakaz />
+            <RequireAuth roles={['coordinator', 'user', 'admin', 'super_admin']}>
+              <PortalLayout />
             </RequireAuth>
           }
-        />
-        <Route
-          path="/portal/*"
-          element={
-            <RequireAuth>
-              <Portal />
-            </RequireAuth>
-          }
-        />
+        >
+          <Route index element={<PortalHome />} />
+          <Route path="calendar" element={<PortalCalendar />} />
+          <Route path="search" element={<PortalSearch />} />
+          <Route path="rooms/:id" element={<PortalRoom />} />
+          <Route path="new" element={<PortalNewRequest />} />
+          <Route path="requests" element={<PortalRequests />} />
+          <Route path="bookings" element={<PortalBookings />} />
+          <Route path="payments" element={<PortalPayments />} />
+          <Route path="help" element={<PortalHelp />} />
+        </Route>
         <Route
           path="/staff/*"
           element={

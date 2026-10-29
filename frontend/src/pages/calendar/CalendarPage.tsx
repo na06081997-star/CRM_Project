@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { addDays, isSameDay, isToday, parseISO, startOfDay } from 'date-fns'
 import { ChevronLeft, ChevronRight, FilterX, PanelRightClose, PanelRightOpen, Plus, Printer } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { MultiSelect } from '@/components/MultiSelect'
 import { toast } from '@/components/toast'
 import { Button, IconButton, Select, Spinner, Tabs } from '@/components/ui'
@@ -13,7 +13,7 @@ import { fmt, timeRange } from '@/lib/format'
 import { bookingStatusLabel, bookingTypeLabel, typeStyles, weekdayShort } from '@/lib/labels'
 import { usePrefs } from '@/lib/prefs'
 import { useLookups, useUsers } from '@/lib/queries'
-import type { Booking, BookingStatus, BookingType } from '@/lib/types'
+import type { Block, Booking, BookingStatus, BookingType } from '@/lib/types'
 import { BookingDialog, type Draft } from './BookingDialog'
 import { MiniMonth } from './MiniMonth'
 import { MonthView } from './MonthView'
@@ -32,14 +32,23 @@ const VIEWS: { value: View; label: string }[] = [
 const TYPES: BookingType[] = ['activity', 'rental', 'internal', 'maintenance', 'closed']
 const STATUSES: BookingStatus[] = ['confirmed', 'pending', 'cancelled']
 
-export function CalendarPage() {
+/**
+ * mode="admin": the full management calendar.
+ * mode="portal": the same views for coordinators / portal users, fed by the
+ * anonymised availability API. Others' bookings show only type and
+ * coordinator name; drawing on a free slot starts a booking request.
+ */
+export function CalendarPage({ mode = 'admin' }: { mode?: 'admin' | 'portal' }) {
+  const portal = mode === 'portal'
+  const nav = useNavigate()
   const [params, setParams] = useSearchParams()
   const qc = useQueryClient()
   const can = useCan()
   const me = useUser()
-  const canEdit = can('bookings:manage')
+  const canEdit = !portal && can('bookings:manage')
+  const named = can('requests:activity') || can('calendar:view') // may see coordinator names
   const { rooms, buildings } = useLookups()
-  const coordinators = useUsers('coordinator', canEdit).data ?? []
+  const staffCoordinators = useUsers('coordinator', canEdit).data ?? []
   const prefBuilding = usePrefs((s) => s.buildingId)
   const [panel, setPanel] = useState(true)
   const [dialog, setDialog] = useState<{ booking: Booking | null; draft: Draft | null } | null>(null)
@@ -53,7 +62,7 @@ export function CalendarPage() {
   const coordinatorId = params.get('coordinator') ?? ''
   const types = list('types') as BookingType[]
   const statuses = (params.has('statuses') ? list('statuses') : ['confirmed', 'pending']) as BookingStatus[]
-  const lens = (params.get('lens') as Lens) || 'admin'
+  const lens: Lens = portal ? 'coordinator' : (params.get('lens') as Lens) || 'admin'
   const focusId = params.get('booking')
 
   const update = (patch: Record<string, string | string[] | null>) => {
@@ -74,7 +83,8 @@ export function CalendarPage() {
   )
 
   const queryKey = ['bookings', from.toISOString(), to.toISOString(), buildingId, roomIds.join(), coordinatorId, types.join(), statuses.join()]
-  const { data: bookings = [], isFetching } = useQuery({
+  const adminQuery = useQuery({
+    enabled: !portal,
     queryKey,
     queryFn: () =>
       api.get<Booking[]>('/bookings', {
@@ -88,6 +98,42 @@ export function CalendarPage() {
       }),
     placeholderData: (prev) => prev,
   })
+
+  // Portal: anonymised blocks mapped onto the Booking shape the views expect.
+  const blocksQuery = useQuery({
+    enabled: portal,
+    queryKey: ['blocks', from.toISOString(), to.toISOString(), buildingId, roomIds.join()],
+    queryFn: () => api.get<Block[]>('/availability/calendar', { from: from.toISOString(), to: to.toISOString(), buildingId: buildingId || undefined, roomIds }),
+    placeholderData: (prev) => prev,
+  })
+  const blockById = useMemo(() => new Map((blocksQuery.data ?? []).map((b) => [b.id, b])), [blocksQuery.data])
+  const portalBookings = useMemo(
+    () =>
+      (blocksQuery.data ?? [])
+        .map(
+          (b) =>
+            ({
+              ...b,
+              coordinatorId: b.mine ? (me?.id ?? null) : b.coordinatorName ? `name:${b.coordinatorName}` : null,
+              customerName: null,
+              price: 0,
+              paidAmount: 0,
+            }) as unknown as Booking,
+        )
+        .filter((b) => (types.length === 0 || types.includes(b.type)) && (!coordinatorId || b.coordinatorId === coordinatorId)),
+    [blocksQuery.data, me?.id, types, coordinatorId],
+  )
+  const bookings = portal ? portalBookings : (adminQuery.data ?? [])
+  const isFetching = portal ? blocksQuery.isFetching : adminQuery.isFetching
+
+  // Coordinator filter: real users for managers, names seen in the calendar for coordinators.
+  const coordinators = useMemo(() => {
+    if (!portal) return staffCoordinators.map((c) => ({ id: c.id, fullName: c.fullName }))
+    const m = new Map<string, string>()
+    if (me) m.set(me.id, `${me.fullName} (אני)`)
+    for (const b of blocksQuery.data ?? []) if (!b.mine && b.coordinatorName) m.set(`name:${b.coordinatorName}`, b.coordinatorName)
+    return [...m.entries()].map(([id, fullName]) => ({ id, fullName }))
+  }, [portal, staffCoordinators, blocksQuery.data, me])
 
   // Open booking from deep link (?booking=id)
   useEffect(() => {
@@ -184,14 +230,32 @@ export function CalendarPage() {
     }
   })()
 
-  const openCreate = (draft: Draft) => canEdit && setDialog({ booking: null, draft })
-  const openBooking = (b: Booking) => setDialog({ booking: b, draft: null })
+  const requestSlot = (d: Draft) => {
+    const roomId = d.roomId ?? visibleRooms[0]?.id
+    if (d.start < new Date()) return toast.error('לא ניתן לבקש מועד שעבר')
+    const taken = bookings.some(
+      (b) => !blockById.get(b.id)?.request && b.roomId === roomId && new Date(b.startsAt) < d.end && new Date(b.endsAt) > d.start,
+    )
+    if (roomId && taken) return toast.error('המועד תפוס בחדר זה – בחרו משבצת פנויה')
+    const q = new URLSearchParams({ start: d.start.toISOString(), end: d.end.toISOString() })
+    if (roomId) q.set('room', roomId)
+    nav(`/portal/new?${q}`)
+  }
+  const openCreate = (draft: Draft) => (portal ? requestSlot(draft) : canEdit && setDialog({ booking: null, draft }))
+  const openBooking = (b: Booking) => {
+    if (!portal) return setDialog({ booking: b, draft: null })
+    const blk = blockById.get(b.id)
+    if (blk?.request) nav(`/portal/requests?id=${blk.id.replace('request:', '')}`)
+    else if (blk?.mine) nav(`/portal/bookings?id=${blk.id}`)
+    else toast.info(`${b.title} · ${b.roomName} · ${timeRange(b.startsAt, b.endsAt)}`)
+  }
+  const views = portal && !named ? VIEWS.filter((v) => v.value !== 'coordinators') : VIEWS
 
   return (
     <div className="flex flex-col gap-4">
       {/* Header */}
       <div className="flex flex-wrap items-center gap-3">
-        <h1 className="text-2xl font-bold tracking-tight">יומן הזמנות</h1>
+        <h1 className="text-2xl font-bold tracking-tight">{portal ? 'יומן זמינות' : 'יומן הזמנות'}</h1>
         <div className="flex items-center gap-1">
           <IconButton label="הקודם" onClick={() => go(step(view, anchor, -1))}>
             <ChevronRight className="h-5 w-5" />
@@ -206,27 +270,28 @@ export function CalendarPage() {
         <h2 className="text-lg font-semibold">{title}</h2>
         {isFetching && <Spinner className="h-4 w-4" />}
         <div className="ms-auto flex flex-wrap items-center gap-2">
-          <Tabs value={view} onChange={(v) => update({ view: v })} items={VIEWS} />
+          <Tabs value={view} onChange={(v) => update({ view: v })} items={views} />
           <IconButton label="הדפסה" onClick={() => window.print()} className="hidden sm:inline-flex">
             <Printer className="h-4 w-4" />
           </IconButton>
-          {canEdit && (
+          {(canEdit || portal) && (
             <Button
               icon={<Plus className="h-4 w-4" />}
               onClick={() => {
+                if (portal) return nav('/portal/new')
                 const s = new Date(anchor)
                 s.setHours(Math.max(8, new Date().getHours() + 1), 0, 0, 0)
                 openCreate({ start: s, end: new Date(s.getTime() + 3600_000), roomId: visibleRooms[0]?.id })
               }}
             >
-              הזמנה חדשה
+              {portal ? 'בקשה חדשה' : 'הזמנה חדשה'}
             </Button>
           )}
         </div>
       </div>
 
       {/* Filters (mirrors the mockup) */}
-      <div className="card grid grid-cols-2 gap-3 p-4 md:grid-cols-3 xl:grid-cols-6">
+      <div className={clsx('card grid grid-cols-2 gap-3 p-4 md:grid-cols-3', portal ? 'xl:grid-cols-4' : 'xl:grid-cols-6')}>
         <label className="min-w-0">
           <span className="label">מבנה</span>
           <Select value={buildingId} onChange={(e) => update({ building: e.target.value, rooms: null })}>
@@ -247,6 +312,7 @@ export function CalendarPage() {
             .filter((r) => !buildingId || r.buildingId === buildingId)
             .map((r) => ({ value: r.id, label: r.name, color: r.color, group: buildings.find((b) => b.id === r.buildingId)?.name }))}
         />
+        {named && (
         <label className="min-w-0">
           <span className="label">רכז</span>
           <Select value={coordinatorId} onChange={(e) => update({ coordinator: e.target.value })}>
@@ -258,7 +324,9 @@ export function CalendarPage() {
             ))}
           </Select>
         </label>
-        <MultiSelect label="סוג הזמנה" allLabel="כל הסוגים" value={types} onChange={(v) => update({ types: v })} options={TYPES.map((t) => ({ value: t, label: bookingTypeLabel[t] }))} />
+        )}
+        {named && <MultiSelect label="סוג הזמנה" allLabel="כל הסוגים" value={types} onChange={(v) => update({ types: v })} options={TYPES.map((t) => ({ value: t, label: bookingTypeLabel[t] }))} />}
+        {!portal && (
         <MultiSelect
           label="סטטוס"
           allLabel="כל הסטטוסים"
@@ -266,6 +334,8 @@ export function CalendarPage() {
           onChange={(v) => update({ statuses: v.length ? v : STATUSES })}
           options={STATUSES.map((s) => ({ value: s, label: bookingStatusLabel[s] }))}
         />
+        )}
+        {!portal && (
         <label className="min-w-0">
           <span className="label">צפייה כ (הדגמה)</span>
           <Select value={lens} onChange={(e) => update({ lens: e.target.value === 'admin' ? null : e.target.value })}>
@@ -274,18 +344,24 @@ export function CalendarPage() {
             <option value="public">קהל רחב – ללא פרטים פנימיים</option>
           </Select>
         </label>
+        )}
       </div>
 
       {/* Legend */}
       <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-muted">
-        {(['activity', 'rental', 'internal'] as BookingType[]).map((t) => (
+        {portal && (
+          <span className="flex items-center gap-1.5 font-medium text-ink">
+            <span className="h-3 w-3 rounded border-2 border-brand bg-brand-soft" /> שלי
+          </span>
+        )}
+        {(named ? (['activity', 'rental', 'internal'] as BookingType[]) : (['internal'] as BookingType[])).map((t) => (
           <span key={t} className="flex items-center gap-1.5">
             <span className={clsx('h-3 w-3 rounded border-s-[3px]', typeStyles[t].bg, typeStyles[t].border)} />
-            {bookingTypeLabel[t]}
+            {named ? bookingTypeLabel[t] : 'תפוס'}
           </span>
         ))}
         <span className="flex items-center gap-1.5">
-          <span className="h-3 w-3 rounded border border-dashed border-ink/50" /> ממתין לאישור
+          <span className="h-3 w-3 rounded border border-dashed border-ink/50" /> {portal ? 'הבקשה שלי ממתינה' : 'ממתין לאישור'}
         </span>
         <span className="flex items-center gap-1.5">
           <span className="hatch h-3 w-3 rounded border border-line" /> סגור / לא זמין
@@ -297,6 +373,9 @@ export function CalendarPage() {
         )}
         {canEdit && (view === 'week' || view === 'day' || view === 'rooms' || view === 'coordinators') && (
           <span className="ms-auto hidden md:inline">גררו על משבצת ריקה ליצירה · גררו הזמנה להזזה · ידית תחתונה לשינוי משך</span>
+        )}
+        {portal && (
+          <span className="ms-auto hidden font-medium text-brand md:inline">גררו על משבצת פנויה כדי לבקש מועד · לחיצה על פעילות שלכם פותחת את פרטיה</span>
         )}
       </div>
 
@@ -366,7 +445,8 @@ export function CalendarPage() {
                   endHour={23}
                   lens={lens}
                   myId={me?.id}
-                  canEdit={canEdit}
+                  canEdit={canEdit || portal}
+                  canMove={canEdit}
                   focusId={focusId}
                   onCreate={(r) => openCreate({ ...r, roomId: r.roomId ?? visibleRooms[0]?.id })}
                   onOpen={openBooking}
@@ -379,6 +459,7 @@ export function CalendarPage() {
         </div>
       </div>
 
+      {!portal && (
       <BookingDialog
         open={!!dialog}
         booking={dialog?.booking ?? null}
@@ -388,6 +469,7 @@ export function CalendarPage() {
           if (focusId) update({ booking: null })
         }}
       />
+      )}
     </div>
   )
 }
