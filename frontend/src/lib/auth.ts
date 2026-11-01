@@ -16,7 +16,7 @@ interface AuthState {
   session: Session | null
   init: () => Promise<void>
   reloadConfig: () => Promise<void>
-  devLogin: (email: string) => Promise<void>
+  devLogin: (email: string, code?: string) => Promise<void>
   googleLogin: () => Promise<void>
   logout: () => Promise<void>
   refreshMe: () => Promise<void>
@@ -90,8 +90,8 @@ export const useAuth = create<AuthState>((set, get) => ({
     if (config) set({ config })
   },
 
-  async devLogin(email) {
-    const res = await api.post<Me & { token: string }>('/auth/dev-login', { email })
+  async devLogin(email, code) {
+    const res = await api.post<Me & { token: string }>('/auth/dev-login', { email, code })
     const session = { token: res.token, user: res.user, permissions: res.permissions }
     setToken(res.token)
     persist(session)

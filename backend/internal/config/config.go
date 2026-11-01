@@ -29,6 +29,7 @@ type Config struct {
 	RedisURL    string
 
 	AuthMode             string // "dev" | "firebase"
+	DemoAccessCode       string // optional: required by the dev login when set (public demo / staging)
 	JWTSecret            string
 	FirebaseProjectID    string
 	FirebaseAPIKey       string
@@ -85,6 +86,7 @@ func Load() (*Config, error) {
 		RedisURL:    os.Getenv("REDIS_URL"),
 
 		AuthMode:             get("AUTH_MODE", "dev"),
+		DemoAccessCode:       os.Getenv("DEMO_ACCESS_CODE"),
 		JWTSecret:            os.Getenv("JWT_SECRET"),
 		FirebaseProjectID:    os.Getenv("FIREBASE_PROJECT_ID"),
 		FirebaseAPIKey:       os.Getenv("FIREBASE_API_KEY"),

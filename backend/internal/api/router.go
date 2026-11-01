@@ -183,11 +183,12 @@ func (s *Server) publicConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ok(w, map[string]any{
-		"appName":      s.cfg.AppName,
-		"organization": org,
-		"authMode":     s.cfg.AuthMode,
-		"timezone":     s.cfg.Location.String(),
-		"version":      s.version,
+		"appName":          s.cfg.AppName,
+		"organization":     org,
+		"authMode":         s.cfg.AuthMode,
+		"demoCodeRequired": s.cfg.AuthMode == "dev" && s.cfg.DemoAccessCode != "",
+		"timezone":         s.cfg.Location.String(),
+		"version":          s.version,
 		"firebase": map[string]string{
 			"apiKey": s.cfg.FirebaseAPIKey, "authDomain": s.cfg.FirebaseAuthDomain,
 			"projectId": s.cfg.FirebaseProjectID, "appId": s.cfg.FirebaseAppID,

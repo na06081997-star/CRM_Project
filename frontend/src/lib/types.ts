@@ -380,6 +380,7 @@ export interface PublicConfig {
   appName: string
   organization: Organization
   authMode: 'dev' | 'firebase'
+  demoCodeRequired?: boolean
   timezone: string
   version: string
   firebase: { apiKey: string; authDomain: string; projectId: string; appId: string }

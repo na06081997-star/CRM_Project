@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { Logo, PoweredBy, ProductMark } from '@/components/layout/Logo'
 import { toast } from '@/components/toast'
-import { Avatar, Button, Spinner } from '@/components/ui'
+import { Avatar, Button, Input, Spinner } from '@/components/ui'
 import { api, errorMessage } from '@/lib/api'
 import { homeFor, useAuth } from '@/lib/auth'
 import { PRODUCT, useOrg } from '@/lib/brand'
@@ -20,7 +20,17 @@ export function LoginPage() {
   const loc = useLocation()
   const [busy, setBusy] = useState<string | null>(null)
   const dev = config?.authMode === 'dev'
-  const users = useQuery({ queryKey: ['dev-users'], queryFn: () => api.get<User[]>('/auth/dev-users'), enabled: dev })
+  const needCode = dev && !!config?.demoCodeRequired
+  // Public demo instances guard the user picker with an access code.
+  const [code, setCode] = useState(() => readDemoCode())
+  const [codeInput, setCodeInput] = useState('')
+  const users = useQuery({
+    queryKey: ['dev-users', code],
+    queryFn: () => api.get<User[]>('/auth/dev-users', { code: code || undefined }),
+    enabled: dev && (!needCode || !!code),
+    retry: false,
+  })
+  const codeRejected = needCode && !!code && users.isError
 
   if (session) return <Navigate to={(loc.state as { from?: string })?.from ?? homeFor(session.user.role)} replace />
 
@@ -106,6 +116,25 @@ export function LoginPage() {
               <div className="mb-3 rounded-xl border border-amber-300/50 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
                 מצב הדגמה: בחרו משתמש לכניסה. בהפעלת Firebase יופיע כאן כפתור התחברות עם Google.
               </div>
+              {needCode && (!code || codeRejected) && (
+                <form
+                  className="mb-4 flex items-end gap-2"
+                  onSubmit={(e) => {
+                    e.preventDefault()
+                    const c = codeInput.trim()
+                    if (!c) return
+                    saveDemoCode(c)
+                    setCode(c)
+                  }}
+                >
+                  <label className="block flex-1">
+                    <span className="label">קוד גישה לסביבת ההדגמה</span>
+                    <Input type="password" autoFocus value={codeInput} onChange={(e) => setCodeInput(e.target.value)} />
+                    {codeRejected && <span className="mt-1 block text-xs text-danger">קוד שגוי</span>}
+                  </label>
+                  <Button type="submit">כניסה</Button>
+                </form>
+              )}
               {users.isLoading && <Spinner />}
               <div className="space-y-4">
                 {ORDER.map((role) => {
@@ -122,7 +151,7 @@ export function LoginPage() {
                             onClick={async () => {
                               setBusy(u.id)
                               try {
-                                await devLogin(u.email)
+                                await devLogin(u.email, code || undefined)
                                 after()
                               } catch (e) {
                                 toast.error(errorMessage(e))
@@ -156,6 +185,24 @@ export function LoginPage() {
       </div>
     </div>
   )
+}
+
+const DEMO_CODE_KEY = 'crm.demoCode'
+
+function readDemoCode() {
+  try {
+    return localStorage.getItem(DEMO_CODE_KEY) ?? ''
+  } catch {
+    return ''
+  }
+}
+
+function saveDemoCode(code: string) {
+  try {
+    localStorage.setItem(DEMO_CODE_KEY, code)
+  } catch {
+    /* private mode: the code then lasts for this page only */
+  }
 }
 
 function GoogleIcon() {

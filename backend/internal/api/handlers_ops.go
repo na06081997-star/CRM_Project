@@ -1,6 +1,7 @@
 package api
 
 import (
+	"crypto/subtle"
 	"errors"
 	"fmt"
 	"io"
@@ -264,7 +265,17 @@ func (s *Server) publicSignage(w http.ResponseWriter, r *http.Request) {
 	ok(w, view)
 }
 
+// demoCodeOK guards the demo login of a publicly reachable dev instance.
+func (s *Server) demoCodeOK(code string) bool {
+	want := s.cfg.DemoAccessCode
+	return want == "" || subtle.ConstantTimeCompare([]byte(code), []byte(want)) == 1
+}
+
 func (s *Server) devUsers(w http.ResponseWriter, r *http.Request) {
+	if !s.demoCodeOK(r.URL.Query().Get("code")) {
+		fail(w, r, domain.ErrUnauthorized)
+		return
+	}
 	users, err := s.svc.Store().ListUsers(r.Context(), store.UserFilter{Active: ptrBool(true)})
 	if err != nil {
 		fail(w, r, err)
@@ -276,9 +287,14 @@ func (s *Server) devUsers(w http.ResponseWriter, r *http.Request) {
 func (s *Server) devLogin(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		Email string `json:"email"`
+		Code  string `json:"code"`
 	}
 	if err := decode(r, &in); err != nil {
 		fail(w, r, err)
+		return
+	}
+	if !s.demoCodeOK(in.Code) {
+		fail(w, r, domain.ErrUnauthorized)
 		return
 	}
 	u, err := s.svc.Store().UserByEmail(r.Context(), in.Email)
