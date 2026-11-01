@@ -5,9 +5,12 @@
 #                                                                         ├─► redis
 #                                                                         └─► garage (S3)
 #
-# Only Traefik publishes a port. Everything else talks over the private
-# `internal` network. On Dokploy, leave COMPOSE_PROFILES empty so the bundled
-# Traefik is skipped and attach the domain to the `frontend` service.
+# This file is the core stack and publishes no port. Routing is added by:
+#   - Dokploy (production): attach the domain to the `frontend` service in the
+#     UI; Dokploy adds its Traefik labels and network.
+#   - docker-compose.standalone.yml (local / plain VPS): bundled Traefik.
+#     Enabled through COMPOSE_FILE in .env.
+# No fixed container or network names, so several client stacks can share a host.
 
 name: crm
 
@@ -15,28 +18,6 @@ x-restart: &restart
   restart: unless-stopped
 
 services:
-  traefik:
-    <<: *restart
-    image: traefik:v3.6
-    profiles: ["standalone"]
-    command:
-      - --providers.docker=true
-      - --providers.docker.exposedbydefault=false
-      - --providers.docker.network=crm_web
-      - --entrypoints.web.address=:80
-      - --ping=true
-      - --log.level=INFO
-    ports:
-      - "${HTTP_PORT:-80}:80"
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-    networks: [web]
-    healthcheck:
-      test: ["CMD", "traefik", "healthcheck", "--ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   frontend:
     <<: *restart
     build:
@@ -44,12 +25,7 @@ services:
     depends_on:
       backend:
         condition: service_healthy
-    networks: [web, internal]
-    labels:
-      - traefik.enable=true
-      - traefik.http.routers.crm.rule=Host(`${DOMAIN:-localhost}`)
-      - traefik.http.routers.crm.entrypoints=web
-      - traefik.http.services.crm.loadbalancer.server.port=80
+    networks: [internal]
 
   backend:
     <<: *restart
@@ -143,8 +119,6 @@ services:
     networks: [internal]
 
 networks:
-  web:
-    name: crm_web
   internal: {}
 
 volumes:

@@ -1,0 +1,35 @@
+# Bundled Traefik for running the stack on its own (local machine, plain VPS).
+# Not used on Dokploy, which brings its own Traefik.
+#   COMPOSE_FILE=docker-compose.yml:docker-compose.standalone.yml   (in .env)
+services:
+  traefik:
+    restart: unless-stopped
+    image: traefik:v3.6
+    command:
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --providers.docker.network=${COMPOSE_PROJECT_NAME:-crm}_web
+      - --entrypoints.web.address=:80
+      - --ping=true
+      - --log.level=INFO
+    ports:
+      - "${HTTP_PORT:-80}:80"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks: [web]
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck", "--ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  frontend:
+    networks: [web, internal]
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.${COMPOSE_PROJECT_NAME:-crm}.rule=Host(`${DOMAIN:-localhost}`)
+      - traefik.http.routers.${COMPOSE_PROJECT_NAME:-crm}.entrypoints=web
+      - traefik.http.services.${COMPOSE_PROJECT_NAME:-crm}.loadbalancer.server.port=80
+
+networks:
+  web: {}

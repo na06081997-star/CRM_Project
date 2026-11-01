@@ -27,3 +27,7 @@ Until this is done the app runs with `AUTH_MODE=dev` (demo login screen). Nothin
 - A user pre-created by an admin (same e-mail) is linked automatically on first Google login, keeping the assigned role.
 
 The API key in the web config is public by design (it identifies the project); it is not a secret.
+
+### Do not use a service account key
+
+The CRM never needs the **service account JSON** (`"type": "service_account"`, with a `private_key`). That key gives admin access to the whole Google Cloud project. Keep it out of `.env`, out of the repo and off the server. If one was created or shared, delete it: Google Cloud console → IAM & Admin → Service accounts → `firebase-adminsdk-…` → Keys → delete.
