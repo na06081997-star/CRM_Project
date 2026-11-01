@@ -11,6 +11,9 @@
 #   Step 3:
 #     sudo bash bootstrap.sh dokploy       # Docker + Dokploy (panel on :3000)
 #
+#   Step 4, once apps run:
+#     sudo bash bootstrap.sh harden        # auto-reboot updates, sysctl, nightly DB backups, Docker cleanup
+#
 # Every step is idempotent and can be re-run.
 set -euo pipefail
 
@@ -136,9 +139,80 @@ EOF
   log "Open http://<ip>:3000 NOW and create the admin account (the first visitor becomes admin)."
 }
 
+harden() {
+  log "Security updates: reboot automatically at 04:00 when a kernel update needs it"
+  cat > /etc/apt/apt.conf.d/52auto-reboot <<'EOF'
+Unattended-Upgrade::Automatic-Reboot "true";
+Unattended-Upgrade::Automatic-Reboot-Time "04:00";
+EOF
+
+  log "Network hardening (sysctl)"
+  cat > /etc/sysctl.d/90-hardening.conf <<'EOF'
+net.ipv4.tcp_syncookies = 1
+net.ipv4.conf.all.rp_filter = 1
+net.ipv4.conf.default.rp_filter = 1
+net.ipv4.conf.all.accept_redirects = 0
+net.ipv4.conf.default.accept_redirects = 0
+net.ipv6.conf.all.accept_redirects = 0
+net.ipv4.conf.all.send_redirects = 0
+net.ipv4.conf.all.accept_source_route = 0
+net.ipv4.icmp_echo_ignore_broadcasts = 1
+kernel.kptr_restrict = 2
+kernel.dmesg_restrict = 1
+EOF
+  sysctl -q --system
+
+  log "Nightly PostgreSQL backups of every compose stack (14 days kept in /var/backups/crm)"
+  cat > /usr/local/bin/crm-backup <<'EOF'
+#!/usr/bin/env bash
+# Dumps every running compose PostgreSQL container (…-postgres-1).
+set -euo pipefail
+umask 077
+dir=/var/backups/crm
+install -d -m 700 "$dir"
+for c in $(docker ps --format '{{.Names}}' | grep -E -- '-postgres-1$'); do
+  out="$dir/${c%-postgres-1}-$(date +%F).sql.gz"
+  docker exec "$c" sh -c 'pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB"' | gzip > "$out.tmp" && mv "$out.tmp" "$out"
+done
+find "$dir" -name '*.sql.gz' -mtime +14 -delete
+EOF
+  chmod 750 /usr/local/bin/crm-backup
+
+  log "Start Dokploy's Traefik after boot"
+  # At boot Docker starts the standalone dokploy-traefik container before the
+  # swarm network dokploy-network exists, the start fails and is not retried,
+  # leaving every site down. This unit waits for the network, then starts it.
+  cat > /etc/systemd/system/dokploy-traefik-start.service <<'EOF'
+[Unit]
+Description=Start dokploy-traefik once dokploy-network exists
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash -c 'for i in $(seq 1 60); do docker network inspect dokploy-network >/dev/null 2>&1 && break; sleep 5; done; docker start dokploy-traefik'
+
+[Install]
+WantedBy=multi-user.target
+EOF
+  systemctl daemon-reload
+  systemctl enable dokploy-traefik-start.service
+
+  log "Weekly Docker cleanup (unused images and build cache older than a week)"
+  cat > /etc/cron.d/crm-maintenance <<'EOF'
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+30 2 * * * root /usr/local/bin/crm-backup >> /var/log/crm-backup.log 2>&1
+0 3 * * 0 root docker image prune -af --filter until=168h >/dev/null && docker builder prune -af --filter until=168h >/dev/null
+EOF
+  /usr/local/bin/crm-backup
+  ls -lh /var/backups/crm
+}
+
 case "${1:-}" in
   setup) setup ;;
   lock-ssh) lock_ssh ;;
   dokploy) dokploy ;;
-  *) echo "usage: bash bootstrap.sh setup | lock-ssh | dokploy" >&2; exit 2 ;;
+  harden) harden ;;
+  *) echo "usage: bash bootstrap.sh setup | lock-ssh | dokploy | harden" >&2; exit 2 ;;
 esac
