@@ -6,7 +6,10 @@
   "packages": {
     ".": {
       "changelog-path": "CHANGELOG.md",
-      "extra-files": [{ "type": "json", "path": "frontend/package.json", "jsonpath": "$.version" }]
+      "extra-files": [
+        { "type": "json", "path": "frontend/package.json", "jsonpath": "$.version" },
+        { "type": "generic", "path": "backend/cmd/server/main.go" }
+      ]
     }
   }
 }
