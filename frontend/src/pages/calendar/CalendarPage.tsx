@@ -1,8 +1,8 @@
 import clsx from 'clsx'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { addDays, isSameDay, isToday, parseISO, startOfDay } from 'date-fns'
-import { ChevronLeft, ChevronRight, FilterX, PanelRightClose, PanelRightOpen, Plus, Printer } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { ChevronLeft, ChevronRight, Filter, FilterX, PanelRightClose, PanelRightOpen, Plus, Printer } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { MultiSelect } from '@/components/MultiSelect'
 import { toast } from '@/components/toast'
@@ -11,6 +11,7 @@ import { api, ApiError, errorMessage } from '@/lib/api'
 import { useCan, useUser } from '@/lib/auth'
 import { fmt, timeRange } from '@/lib/format'
 import { bookingStatusLabel, bookingTypeLabel, typeStyles, weekdayShort } from '@/lib/labels'
+import { useIsPhone } from '@/lib/media'
 import { usePrefs } from '@/lib/prefs'
 import { useLookups, useUsers } from '@/lib/queries'
 import type { Block, Booking, BookingStatus, BookingType } from '@/lib/types'
@@ -51,10 +52,14 @@ export function CalendarPage({ mode = 'admin' }: { mode?: 'admin' | 'portal' }) 
   const staffCoordinators = useUsers('coordinator', canEdit).data ?? []
   const prefBuilding = usePrefs((s) => s.buildingId)
   const [panel, setPanel] = useState(true)
+  const phone = useIsPhone()
+  const [showFilters, setShowFilters] = useState(false)
+  const swipe = useRef<{ x: number; y: number } | null>(null)
   const [dialog, setDialog] = useState<{ booking: Booking | null; draft: Draft | null } | null>(null)
 
   // ── URL state (shareable) ──
-  const view = (params.get('view') as View) || 'week'
+  // Phones open on a single day: a week does not fit a 390px screen.
+  const view = (params.get('view') as View) || (phone ? 'day' : 'week')
   const anchor = params.get('date') ? parseISO(params.get('date')!) : startOfDay(new Date())
   const list = (k: string) => params.get(k)?.split(',').filter(Boolean) ?? []
   const buildingId = params.get('building') ?? prefBuilding ?? ''
@@ -290,8 +295,23 @@ export function CalendarPage({ mode = 'admin' }: { mode?: 'admin' | 'portal' }) 
         </div>
       </div>
 
+      {/* Phones: filters fold away behind a button */}
+      {phone && (
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="secondary" icon={<Filter className="h-4 w-4" />} onClick={() => setShowFilters((v) => !v)}>
+            {showFilters ? 'הסתרת סינון' : 'סינון'}
+            {filtersActive && <span className="ms-1 h-2 w-2 rounded-full bg-brand" />}
+          </Button>
+          {filtersActive && (
+            <button className="flex items-center gap-1 text-sm text-brand" onClick={() => update({ rooms: null, coordinator: null, types: null, statuses: null, lens: null })}>
+              <FilterX className="h-4 w-4" /> ניקוי
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Filters (mirrors the mockup) */}
-      <div className={clsx('card grid grid-cols-2 gap-3 p-4 md:grid-cols-3', portal ? 'xl:grid-cols-4' : 'xl:grid-cols-6')}>
+      <div className={clsx('card grid grid-cols-2 gap-3 p-4 md:grid-cols-3', portal ? 'xl:grid-cols-4' : 'xl:grid-cols-6', phone && !showFilters && 'hidden')}>
         <label className="min-w-0">
           <span className="label">מבנה</span>
           <Select value={buildingId} onChange={(e) => update({ building: e.target.value, rooms: null })}>
@@ -412,7 +432,23 @@ export function CalendarPage({ mode = 'admin' }: { mode?: 'admin' | 'portal' }) 
           </aside>
         )}
 
-        <div className="flex min-w-0 flex-1 flex-col">
+        <div
+          className="flex min-w-0 flex-1 flex-col"
+          onTouchStart={(e) => {
+            const t = e.touches[0]
+            swipe.current = { x: t.clientX, y: t.clientY }
+          }}
+          onTouchEnd={(e) => {
+            const s0 = swipe.current
+            swipe.current = null
+            if (!s0 || (view !== 'day' && view !== 'month')) return
+            const t = e.changedTouches[0]
+            const dx = t.clientX - s0.x
+            if (Math.abs(dx) < 70 || Math.abs(t.clientY - s0.y) > 50) return
+            // RTL: time runs right to left, so swiping right brings the next period.
+            go(step(view, anchor, dx > 0 ? 1 : -1))
+          }}
+        >
           <div className="mb-2 hidden justify-end xl:flex">
             <button onClick={() => setPanel((p) => !p)} className="flex items-center gap-1 text-xs text-muted hover:text-ink">
               {panel ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
@@ -437,7 +473,7 @@ export function CalendarPage({ mode = 'admin' }: { mode?: 'admin' | 'portal' }) 
           )}
           {view !== 'year' && view !== 'month' && (
             <div className="overflow-x-auto">
-              <div style={{ minWidth: Math.max(600, columns.length * (view === 'week' ? 110 : 150)) }}>
+              <div style={{ minWidth: view === 'day' ? 0 : Math.max(600, columns.length * (view === 'week' ? 110 : 150)) }}>
                 <TimeGrid
                   columns={columns}
                   bookings={bookings}

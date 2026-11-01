@@ -1,7 +1,7 @@
 import clsx from 'clsx'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { History, Plus } from 'lucide-react'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Attachments } from '@/components/Attachments'
 import { CancelDialog } from '@/components/CancelDialog'
@@ -28,6 +28,7 @@ export function RequestsPage() {
   const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'rejected' | 'cancelled'>('all')
   const list = (data ?? []).filter((r) => filter === 'all' || r.status === filter)
   const selected = list.find((r) => r.id === params.get('id')) ?? list[0]
+  const detailRef = useRef<HTMLDivElement>(null)
 
   return (
     <div>
@@ -85,7 +86,12 @@ export function RequestsPage() {
                   {list.map((r) => (
                     <tr
                       key={r.id}
-                      onClick={() => setParams({ id: r.id })}
+                      onClick={() => {
+                        setParams({ id: r.id })
+                        // Phones stack the details under the list: bring them into view.
+                        if (window.matchMedia('(max-width: 1023px)').matches)
+                          requestAnimationFrame(() => detailRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+                      }}
                       className={clsx('cursor-pointer transition [&>td]:px-4 [&>td]:py-3', selected?.id === r.id ? 'bg-brand-soft/50' : 'hover:bg-subtle')}
                     >
                       <td>
@@ -114,7 +120,9 @@ export function RequestsPage() {
             </div>
             <p className="rounded-xl border-s-4 border-brand bg-subtle px-4 py-3 text-xs text-muted">אין שינוי מועד להזמנה מאושרת בשירות עצמי. בקשה לשינוי נשלחת למתנ״ס; שינוי מתבצע רק אחרי בדיקת זמינות מחדש.</p>
           </div>
-          {selected && <RequestDetail r={selected} />}
+          <div ref={detailRef} className="scroll-mt-20">
+            {selected && <RequestDetail r={selected} />}
+          </div>
         </div>
       )}
     </div>

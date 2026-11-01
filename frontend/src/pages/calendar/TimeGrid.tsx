@@ -47,6 +47,7 @@ export function TimeGrid({ columns, bookings, startHour, endHour, lens, myId, ca
   const [drag, setDrag] = useState<Drag | null>(null)
   const dragRef = useRef<Drag | null>(null)
   dragRef.current = drag
+  const lastPointer = useRef<string>('mouse')
   const gridStart = startHour * 60
   const gridEnd = endHour * 60
   const hours = useMemo(() => Array.from({ length: endHour - startHour }, (_, i) => startHour + i), [startHour, endHour])
@@ -124,25 +125,39 @@ export function TimeGrid({ columns, bookings, startHour, endHour, lens, myId, ca
         if (start.getTime() !== new Date(d.booking.startsAt).getTime() || roomId !== d.booking.roomId) onMove(d.booking, { start, end, roomId })
       }
     }
+    // The browser cancels the pointer when a gesture turns into a scroll.
+    const cancel = () => setDrag(null)
     window.addEventListener('pointermove', move)
     window.addEventListener('pointerup', up, { once: true })
+    window.addEventListener('pointercancel', cancel, { once: true })
     return () => {
       window.removeEventListener('pointermove', move)
       window.removeEventListener('pointerup', up)
+      window.removeEventListener('pointercancel', cancel)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [drag?.mode])
 
+  // On touch screens dragging scrolls the grid; a tap creates or opens instead
+  // (see tapCreate and EventBlock's onTap).
   const startCreate = (e: React.PointerEvent, col: number) => {
-    if (!canEdit || e.button !== 0) return
+    if (!canEdit || e.button !== 0 || e.pointerType === 'touch') return
     const { min } = locate(e.clientX, e.clientY)
     const m = Math.floor(min / SNAP) * SNAP
     setDrag({ mode: 'create', col, from: m, to: m + SNAP })
   }
 
+  const tapCreate = (e: React.MouseEvent, col: number) => {
+    if (!canEdit || lastPointer.current !== 'touch') return
+    const { min } = locate(e.clientX, e.clientY)
+    const a = Math.floor(min / SNAP) * SNAP
+    const c = columns[col]
+    onCreate({ start: minutesToDate(c.day, a), end: minutesToDate(c.day, a + 60), roomId: c.roomId })
+  }
+
   const startMove = (e: React.PointerEvent, b: Booking, col: number) => {
     e.stopPropagation()
-    if (e.button !== 0) return
+    if (e.button !== 0 || e.pointerType === 'touch') return
     const { min } = locate(e.clientX, e.clientY)
     const day = columns[col].day
     const s = (new Date(b.startsAt).getTime() - day.getTime()) / 60000
@@ -153,6 +168,7 @@ export function TimeGrid({ columns, bookings, startHour, endHour, lens, myId, ca
 
   const startResize = (e: React.PointerEvent, b: Booking, col: number) => {
     e.stopPropagation()
+    if (e.pointerType === 'touch') return
     const day = columns[col].day
     setDrag({
       mode: 'resize',
@@ -206,7 +222,11 @@ export function TimeGrid({ columns, bookings, startHour, endHour, lens, myId, ca
               <div
                 key={c.key}
                 className={clsx('relative border-s border-line', c.day.getDay() === 6 && 'hatch opacity-[.97]', canEdit && 'cursor-cell')}
-                onPointerDown={(e) => startCreate(e, ci)}
+                onPointerDown={(e) => {
+                  lastPointer.current = e.pointerType
+                  startCreate(e, ci)
+                }}
+                onClick={(e) => tapCreate(e, ci)}
               >
                 {placed[ci].map((p) => {
                   const b = p.booking
@@ -220,7 +240,11 @@ export function TimeGrid({ columns, bookings, startHour, endHour, lens, myId, ca
                       dimmed={hidden}
                       focused={focusId === b.id}
                       canResize={canMove && b.status !== 'cancelled'}
-                      onPointerDown={(e) => startMove(e, b, ci)}
+                      onPointerDown={(e) => {
+                        lastPointer.current = e.pointerType
+                        startMove(e, b, ci)
+                      }}
+                      onTap={() => lastPointer.current === 'touch' && onOpen(b)}
                       onResize={(e) => startResize(e, b, ci)}
                       resizingEnd={drag?.mode === 'resize' && drag.booking.id === b.id ? drag.end : undefined}
                     />
@@ -278,6 +302,7 @@ function EventBlock({
   focused,
   canResize,
   onPointerDown,
+  onTap,
   onResize,
   resizingEnd,
 }: {
@@ -288,6 +313,7 @@ function EventBlock({
   focused: boolean
   canResize: boolean
   onPointerDown: (e: React.PointerEvent) => void
+  onTap: () => void
   onResize: (e: React.PointerEvent) => void
   resizingEnd?: number
 }) {
@@ -309,6 +335,10 @@ function EventBlock({
     <div
       data-booking={b.id}
       onPointerDown={onPointerDown}
+      onClick={(e) => {
+        e.stopPropagation()
+        onTap()
+      }}
       className={clsx(
         'group absolute z-10 cursor-pointer overflow-hidden rounded-lg border-s-[3px] px-1.5 py-1 text-[11px] leading-tight shadow-sm transition-[box-shadow,opacity] hover:z-20 hover:shadow-pop',
         st.bg,

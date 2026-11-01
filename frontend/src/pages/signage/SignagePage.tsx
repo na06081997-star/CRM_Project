@@ -61,9 +61,9 @@ export function SignagePage() {
         <div className={clsx('absolute -bottom-40 -end-40 h-[40rem] w-[40rem] rounded-full blur-3xl', dark ? 'bg-violet-500/10' : 'bg-violet-300/30')} />
       </div>
 
-      <div className="relative flex min-h-screen flex-col gap-[1.4em] p-[1.6em]">
+      <div className="relative flex min-h-screen flex-col gap-[1.4em] p-4 sm:p-[1.6em]">
         {/* Header */}
-        <header className="flex items-center gap-[1.2em]">
+        <header className="flex flex-wrap items-center gap-x-[1.2em] gap-y-[1em]">
           {org?.markUrl || org?.logoUrl ? (
             <span className="flex h-[4em] w-[4em] shrink-0 items-center justify-center rounded-2xl bg-white p-[0.25em] shadow-lg shadow-black/20">
               <img src={org.markUrl || org.logoUrl} alt={org.name} className="h-full w-full object-contain" />
@@ -71,11 +71,11 @@ export function SignagePage() {
           ) : (
             <ProductMark className="h-[3.2em] w-[3.2em]" />
           )}
-          <div>
-            <h1 className="text-[2em] font-extrabold leading-tight">{data?.building?.name ?? (org ? org.name : PRODUCT.name)}</h1>
+          <div className="min-w-0 flex-1">
+            <h1 className="text-[1.5em] font-extrabold leading-tight sm:text-[2em]">{data?.building?.name ?? (org ? org.name : PRODUCT.name)}</h1>
             <p className={clsx('text-[1em]', dark ? 'text-slate-400' : 'text-slate-500')}>{data?.screen?.welcomeText || 'מה קורה עכשיו במתנ״ס'}</p>
           </div>
-          <div className="ms-auto flex items-center gap-[2em]">
+          <div className="flex w-full items-center justify-between gap-[1em] sm:ms-auto sm:w-auto sm:justify-start sm:gap-[2em]">
             {!slug && !preview && (
               <Link to="/login" className="flex items-center gap-2 rounded-2xl bg-teal-500 px-[1.1em] py-[0.6em] text-[0.95em] font-semibold text-white shadow-lg shadow-teal-500/30 hover:bg-teal-400">
                 <LogIn className="h-[1.1em] w-[1.1em]" /> כניסה למערכת
@@ -87,13 +87,20 @@ export function SignagePage() {
               <Pill dark={dark} label="חדרים פנויים" value={data?.stats.available ?? 0} tone="emerald" />
             </div>
             <div className="text-end">
-              <p className="text-[3.2em] font-bold leading-none tabular-nums tracking-tight">{fmt(now, 'HH:mm')}</p>
-              <p className={clsx('mt-1 text-[0.95em]', dark ? 'text-slate-400' : 'text-slate-500')}>
+              <p className="text-[2.4em] font-bold leading-none tabular-nums tracking-tight sm:text-[3.2em]">{fmt(now, 'HH:mm')}</p>
+              <p className={clsx('mt-1 text-[0.85em] sm:text-[0.95em]', dark ? 'text-slate-400' : 'text-slate-500')}>
                 {fmt(now, 'EEEE, d בMMMM')} · {hebrewDate.format(now)}
               </p>
             </div>
           </div>
         </header>
+
+        {/* Phones: the counters the header has no room for */}
+        <div className="grid grid-cols-3 gap-2 md:hidden">
+          <Pill dark={dark} label="פעילויות היום" value={data?.stats.today ?? 0} />
+          <Pill dark={dark} label="תפוסים" value={data?.stats.occupied ?? 0} tone="rose" />
+          <Pill dark={dark} label="פנויים" value={data?.stats.available ?? 0} tone="emerald" />
+        </div>
 
         {isError && <p className="rounded-2xl bg-rose-500/15 p-4 text-rose-300">לא ניתן לטעון את נתוני השילוט. מנסה שוב…</p>}
 
@@ -107,7 +114,8 @@ export function SignagePage() {
           </section>
 
           {/* Side: announcements + upcoming */}
-          <aside className="flex flex-col gap-[1.4em]">
+          {/* Phones show announcements and what's next before the room list */}
+          <aside className="order-first flex flex-col gap-[1.4em] xl:order-none">
             {ann && (
               <div key={ann.id} className={clsx('animate-fade-in overflow-hidden rounded-3xl', dark ? 'bg-gradient-to-br from-teal-600 to-teal-800' : 'bg-gradient-to-br from-teal-500 to-teal-700 text-white')}>
                 {ann.imageKey && <img src={publicFileUrl(ann.imageKey)} alt="" className="aspect-video w-full object-cover" />}
@@ -153,7 +161,7 @@ export function SignagePage() {
           {connected ? <Wifi className="h-4 w-4 text-emerald-400" /> : <WifiOff className="h-4 w-4 text-amber-400" />}
           {connected ? 'מתעדכן בזמן אמת' : preview ? 'תצוגה מקדימה' : 'מתחבר מחדש…'}
           <span className="ms-auto flex items-center gap-2">
-            {org && <span>{org.name} ·</span>}
+            {org && <span className="hidden sm:inline">{org.name} ·</span>}
             <ProductMark className="h-4 w-4" /> {PRODUCT.name} · שילוט דיגיטלי
           </span>
           {!preview && slug && (
@@ -162,7 +170,7 @@ export function SignagePage() {
             </Link>
           )}
           {!preview && (
-            <button onClick={() => document.documentElement.requestFullscreen?.()} className="flex items-center gap-1 rounded-lg px-2 py-1 hover:bg-white/10" aria-label="מסך מלא">
+            <button onClick={() => document.documentElement.requestFullscreen?.()} className="hidden items-center gap-1 rounded-lg px-2 py-1 hover:bg-white/10 sm:flex" aria-label="מסך מלא">
               <Maximize className="h-4 w-4" /> מסך מלא
             </button>
           )}

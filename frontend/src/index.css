@@ -75,7 +75,8 @@
 
 @layer components {
   .card {
-    @apply rounded-2xl border border-line bg-surface shadow-card;
+    /* min-w-0: cards sit in grids, where long text would otherwise widen the page */
+    @apply min-w-0 rounded-2xl border border-line bg-surface shadow-card;
   }
   .input {
     @apply h-10 w-full rounded-xl border border-line bg-surface px-3 text-sm text-ink placeholder:text-muted/70

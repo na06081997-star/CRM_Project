@@ -35,6 +35,7 @@ import type { BookingRequest, Notification, PaymentSummary } from '@/lib/types'
 import { Avatar, IconButton, Select } from '../ui'
 import { CommandPalette } from './CommandPalette'
 import { Logo, PoweredBy } from './Logo'
+import { BottomNav, DrawerAccount, type BottomNavItem } from './MobileNav'
 
 interface NavItem {
   to: string
@@ -150,14 +151,24 @@ export function AdminLayout() {
           {live ? 'מחובר בזמן אמת' : 'מתחבר…'} · פתיחת מסך לובי
         </a>
       </nav>
+      <DrawerAccount />
       <PoweredBy className="border-t border-line px-3 pt-3" />
     </div>
   )
 
+  const bottom: (BottomNavItem & { perm: string })[] = [
+    { to: '/admin', label: 'בקרה', icon: <LayoutGrid />, end: true, perm: 'dashboard:view' },
+    { to: '/admin/calendar', label: 'יומן', icon: <CalendarDays />, perm: 'calendar:view' },
+    { to: '/admin/bookings', label: 'בקשות', icon: <ClipboardList />, badge: pending.data?.length, perm: 'requests:review' },
+    { to: '/admin/payments', label: 'תשלומים', icon: <CreditCard />, badge: pay.data?.unpaidCount, perm: 'payments:view' },
+  ]
+
   return (
-    <div className="flex h-full">
+    // Phones scroll the page itself (natural scrolling, collapsing address
+    // bar); from lg the sidebar stays put and only <main> scrolls.
+    <div className="flex min-h-full lg:h-full">
       {/* Sidebar: right side in RTL */}
-      <aside className="hidden w-64 shrink-0 border-e border-line bg-surface lg:block">{sidebar}</aside>
+      <aside className="hidden w-64 shrink-0 border-e border-line bg-surface lg:block lg:h-full">{sidebar}</aside>
       {sidebarOpen && (
         <div className="fixed inset-0 z-40 lg:hidden">
           <div className="absolute inset-0 bg-slate-900/40" onClick={() => setSidebar(false)} />
@@ -167,19 +178,22 @@ export function AdminLayout() {
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-line bg-surface/85 px-4 backdrop-blur lg:px-6">
-          <IconButton label="תפריט" className="lg:hidden" onClick={() => setSidebar(true)}>
+          <IconButton label="תפריט" className="hidden sm:inline-flex lg:hidden" onClick={() => setSidebar(true)}>
             <Menu className="h-5 w-5" />
           </IconButton>
           <button
             onClick={() => setPalette(true)}
-            className="flex h-10 max-w-md flex-1 items-center gap-2 rounded-xl border border-line bg-subtle px-3 text-sm text-muted transition hover:border-brand/40"
+            className="flex h-10 min-w-0 max-w-md flex-1 items-center gap-2 rounded-xl border border-line bg-subtle px-3 text-sm text-muted transition hover:border-brand/40"
           >
             <Search className="h-4 w-4" />
-            <span className="flex-1 truncate text-start">חיפוש הזמנה, לקוח, חדר או טלפון…</span>
+            <span className="flex-1 truncate text-start">
+              <span className="sm:hidden">חיפוש…</span>
+              <span className="hidden sm:inline">חיפוש הזמנה, לקוח, חדר או טלפון…</span>
+            </span>
             <kbd className="hidden rounded-md border border-line bg-surface px-1.5 text-[10px] sm:inline">Ctrl K</kbd>
           </button>
           <div className="ms-auto flex items-center gap-1">
-            <IconButton label={theme === 'dark' ? 'מצב בהיר' : 'מצב כהה'} onClick={toggleTheme}>
+            <IconButton label={theme === 'dark' ? 'מצב בהיר' : 'מצב כהה'} className="hidden sm:inline-flex" onClick={toggleTheme}>
               {theme === 'dark' ? <Sun className="h-[18px] w-[18px]" /> : <Moon className="h-[18px] w-[18px]" />}
             </IconButton>
             <NotificationsBell />
@@ -190,9 +204,12 @@ export function AdminLayout() {
                   <p className="text-sm font-semibold">{user.fullName}</p>
                   <p className="text-xs text-muted">{roleLabel[user.role]}</p>
                 </div>
-                <Avatar name={user.fullName} color={user.avatarColor} />
+                <button className="rounded-full" onClick={() => setSidebar(true)} aria-label="חשבון ותפריט">
+                  <Avatar name={user.fullName} color={user.avatarColor} />
+                </button>
                 <IconButton
                   label="התנתקות"
+                  className="hidden sm:inline-flex"
                   onClick={async () => {
                     await logout()
                     nav('/login')
@@ -204,12 +221,13 @@ export function AdminLayout() {
             )}
           </div>
         </header>
-        <main className="scroll-thin flex-1 overflow-y-auto">
-          <div className="mx-auto w-full max-w-[1600px] p-4 lg:p-6">
+        <main className="scroll-thin flex-1 lg:overflow-y-auto">
+          <div className="mx-auto w-full max-w-[1600px] p-4 pb-24 lg:p-6">
             <Outlet />
           </div>
         </main>
       </div>
+      <BottomNav items={bottom.filter((i) => can(i.perm))} onMore={() => setSidebar(true)} />
       <CommandPalette open={palette} onClose={() => setPalette(false)} />
     </div>
   )

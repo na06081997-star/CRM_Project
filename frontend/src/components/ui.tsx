@@ -259,7 +259,7 @@ export function Modal({ open, onClose, title, children, footer, size = 'md' }: {
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4">
       <div className="absolute inset-0 animate-fade-in bg-slate-900/40 backdrop-blur-[2px]" onClick={onClose} />
-      <div role="dialog" aria-modal className={clsx('relative flex max-h-[92vh] w-full animate-slide-up flex-col rounded-t-2xl bg-surface shadow-pop sm:rounded-2xl', width)}>
+      <div role="dialog" aria-modal className={clsx('relative flex max-h-[92dvh] w-full animate-slide-up flex-col rounded-t-2xl bg-surface shadow-pop sm:rounded-2xl', width)}>
         <header className="flex items-center justify-between border-b border-line px-5 py-4">
           <h2 className="text-base font-semibold">{title}</h2>
           <IconButton label="סגירה" onClick={onClose}>
@@ -267,7 +267,11 @@ export function Modal({ open, onClose, title, children, footer, size = 'md' }: {
           </IconButton>
         </header>
         <div className="scroll-thin flex-1 overflow-y-auto px-5 py-4">{children}</div>
-        {footer && <footer className="flex flex-wrap items-center justify-end gap-2 border-t border-line px-5 py-3">{footer}</footer>}
+        {footer && (
+          <footer className="flex flex-wrap items-center justify-end gap-2 border-t border-line px-5 py-3 max-sm:[&>*]:flex-1" style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}>
+            {footer}
+          </footer>
+        )}
       </div>
     </div>,
     document.body,
@@ -288,7 +292,11 @@ export function Drawer({ open, onClose, title, children, footer }: { open: boole
           </IconButton>
         </header>
         <div className="scroll-thin flex-1 overflow-y-auto p-5">{children}</div>
-        {footer && <footer className="flex items-center justify-end gap-2 border-t border-line px-5 py-3">{footer}</footer>}
+        {footer && (
+          <footer className="flex flex-wrap items-center justify-end gap-2 border-t border-line px-5 py-3 max-sm:[&>*]:flex-1" style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}>
+            {footer}
+          </footer>
+        )}
       </aside>
     </div>,
     document.body,
