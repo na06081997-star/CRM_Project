@@ -28,7 +28,7 @@ import (
 
 // version tracks the release (bumped by release-please); a build can still
 // override it with -ldflags "-X main.version=…".
-var version = "0.1.0" // x-release-please-version
+var version = "0.2.0" // x-release-please-version
 
 func main() {
 	healthcheck := flag.Bool("healthcheck", false, "probe the local /api/health endpoint and exit")
