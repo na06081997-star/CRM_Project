@@ -16,6 +16,15 @@ Internet ─► VPS (Ubuntu, ufw + fail2ban, key-only SSH)
 - `docker-compose.yml` is the core stack and publishes nothing. Locally, `docker-compose.standalone.yml` adds a bundled Traefik (enabled through `COMPOSE_FILE` in `.env`); Dokploy does not use it.
 - **Auto deploy**: every push to `main` redeploys (GitHub webhook).
 
+## Environments
+
+| Dokploy environment | Branch | URL (temporary) | Data / login |
+| --- | --- | --- | --- |
+| `production` | `main` | `maale-ramot.2-24-0-235.sslip.io` | real data, Google login (`AUTH_MODE=firebase`) |
+| `development` | `develop` | `dev.2-24-0-235.sslip.io` | demo data, demo login behind `DEMO_ACCESS_CODE` |
+
+Work lands on `develop` and deploys to dev on every push. After review on dev, `develop` is merged into `main`, which deploys production. Each environment has its own compose webhook in GitHub (repo → Settings → Webhooks); Dokploy ignores pushes to other branches.
+
 ## 1. Prepare the VPS (once)
 
 `deploy/vps/bootstrap.sh` has three idempotent steps. Run them as root the first time:
