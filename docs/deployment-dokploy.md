@@ -67,7 +67,7 @@ Docker-published ports bypass `ufw`, so once the panel has a domain, close **300
 
 ## 3. Deploy a client
 
-1. **Projects → Create project** `crm-maale-ramot` → **Create service → Compose**.
+1. **Projects → Create project** `<client>` → **Create service → Compose**.
    - Provider Git, repo `https://github.com/na06081997-star/CRM_Project.git`, branch `main` (`develop` / `demo/<client>` for the other environments), compose path `./docker-compose.yml`.
    - **Auto Deploy** off.
 2. **Environment**: paste the client's production env (generate secrets with `openssl rand -hex 32`; keep the file outside git). Required:
