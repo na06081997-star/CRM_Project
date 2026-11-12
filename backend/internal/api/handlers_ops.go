@@ -58,6 +58,15 @@ func (s *Server) paymentSummary(w http.ResponseWriter, r *http.Request) {
 	ok(w, sum)
 }
 
+func (s *Server) billing(w http.ResponseWriter, r *http.Request) {
+	listHandler(func(r *http.Request, a service.Actor) ([]domain.Booking, error) {
+		return s.svc.Billing(r.Context(), a, store.BookingFilter{
+			Payment: r.URL.Query().Get("payment"), From: qTime(r, "from"), To: qTime(r, "to"),
+			RoomIDs: qUUIDs(r, "roomIds"), CustomerID: qUUID(r, "customerId"), Search: r.URL.Query().Get("q"),
+		})
+	})(w, r)
+}
+
 func (s *Server) balances(w http.ResponseWriter, r *http.Request) {
 	listHandler(func(r *http.Request, a service.Actor) ([]domain.Booking, error) {
 		return s.svc.Balances(r.Context(), a, qUUID(r, "customerId"))
@@ -69,7 +78,8 @@ func (s *Server) balances(w http.ResponseWriter, r *http.Request) {
 func (s *Server) listTasks(w http.ResponseWriter, r *http.Request) {
 	listHandler(func(r *http.Request, a service.Actor) ([]domain.Task, error) {
 		return s.svc.ListTasks(r.Context(), a, store.TaskFilter{
-			AssigneeID: qUUID(r, "assigneeId"), Statuses: qList(r, "statuses"), From: qTime(r, "from"), To: qTime(r, "to"),
+			AssigneeID: qUUID(r, "assigneeId"), ReportedBy: qUUID(r, "reportedBy"), Unassigned: r.URL.Query().Get("unassigned") == "true",
+			Statuses: qList(r, "statuses"), From: qTime(r, "from"), To: qTime(r, "to"),
 		})
 	})(w, r)
 }
@@ -178,14 +188,7 @@ func (s *Server) listFiles(w http.ResponseWriter, r *http.Request) {
 		if id == nil {
 			return nil, errBadRequest
 		}
-		entity := r.URL.Query().Get("entity")
-		if !a.Can(domain.ActViewCalendar) {
-			req, err := s.svc.Store().RequestByID(r.Context(), *id)
-			if entity != "request" || err != nil || req.UserID != a.User.ID {
-				return nil, domain.ErrForbidden
-			}
-		}
-		return s.svc.Store().ListAttachments(r.Context(), entity, *id)
+		return s.svc.ListFiles(r.Context(), a, r.URL.Query().Get("entity"), *id)
 	})(w, r)
 }
 

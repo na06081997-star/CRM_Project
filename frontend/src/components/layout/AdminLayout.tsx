@@ -13,10 +13,10 @@ import {
   Menu,
   Monitor,
   Moon,
+  Plus,
   Search,
   Settings2,
   ShieldCheck,
-  Sparkles,
   Sun,
   UserCog,
   Users,
@@ -32,7 +32,7 @@ import { usePrefs } from '@/lib/prefs'
 import { useBuildings } from '@/lib/queries'
 import { useLiveInvalidation } from '@/lib/realtime'
 import type { BookingRequest, Notification, PaymentSummary } from '@/lib/types'
-import { Avatar, IconButton, Select } from '../ui'
+import { Avatar, Button, IconButton, Select } from '../ui'
 import { CommandPalette } from './CommandPalette'
 import { Logo, PoweredBy } from './Logo'
 import { BottomNav, DrawerAccount, type BottomNavItem } from './MobileNav'
@@ -62,6 +62,12 @@ export function AdminLayout() {
     queryFn: () => api.get<BookingRequest[]>('/requests', { status: 'pending' }),
     enabled: can('requests:review'),
   })
+  // Coordinator tickets waiting for a worker.
+  const tickets = useQuery({
+    queryKey: ['tasks', 'unassigned'],
+    queryFn: () => api.get<unknown[]>('/tasks', { unassigned: true, statuses: ['open'] }),
+    enabled: can('tasks:manage'),
+  })
   const pay = useQuery({
     queryKey: ['payments', 'summary'],
     queryFn: () => api.get<PaymentSummary>('/payments/summary'),
@@ -85,16 +91,15 @@ export function AdminLayout() {
     { to: '/admin/calendar', label: 'יומן הזמנות', icon: <CalendarDays />, perm: 'calendar:view' },
     { to: '/admin/bookings', label: 'הזמנות ובקשות', icon: <ClipboardList />, perm: 'requests:review', badge: pending.data?.length },
     { to: '/admin/rooms', label: 'חדרים ואולמות', icon: <Building2 />, perm: 'rooms:manage' },
-    { to: '/admin/activities', label: 'פעילויות', icon: <Sparkles />, perm: 'activities:manage' },
     { to: '/admin/customers', label: 'לקוחות', icon: <Users />, perm: 'customers:manage' },
-    { to: '/admin/coordinators', label: 'רכזים', icon: <UserCog />, perm: 'bookings:manage' },
+    { to: '/admin/coordinators', label: 'רכזים', icon: <UserCog />, perm: 'coordinators:manage' },
     { to: '/admin/payments', label: 'תשלומים', icon: <CreditCard />, perm: 'payments:view', badge: pay.data?.unpaidCount },
     { to: '/admin/reports', label: 'דוחות', icon: <BarChart3 />, perm: 'reports:view' },
     { to: '/admin/users', label: 'משתמשים והרשאות', icon: <ShieldCheck />, perm: 'users:manage' },
     { to: '/admin/settings', label: 'הגדרות מערכת', icon: <Settings2 />, perm: 'settings:manage' },
   ]
   const extra: NavItem[] = [
-    { to: '/admin/tasks', label: 'משימות תפעול', icon: <ListChecks />, perm: 'tasks:manage' },
+    { to: '/admin/tasks', label: 'משימות תפעול', icon: <ListChecks />, perm: 'tasks:manage', badge: tickets.data?.length },
     { to: '/admin/signage', label: 'שילוט דיגיטלי', icon: <Monitor />, perm: 'signage:manage' },
     { to: '/portal', label: 'פורטל רכזים (הדגמה)', icon: <UserCog />, perm: 'requests:review' },
     { to: '/staff', label: 'אפליקציית צוות', icon: <ListChecks />, perm: 'tasks:manage' },
@@ -142,6 +147,11 @@ export function AdminLayout() {
           </Select>
         </div>
       )}
+      {can('bookings:manage') && (
+        <Button icon={<Plus className="h-4 w-4" />} onClick={() => nav('/admin/calendar?new=1')}>
+          הזמנה חדשה
+        </Button>
+      )}
       <nav className="scroll-thin -mx-1 flex flex-1 flex-col gap-0.5 overflow-y-auto px-1">
         {renderNav(main)}
         <p className="mb-1 mt-5 px-3 text-[11px] font-semibold uppercase tracking-wide text-muted">מודולים נוספים</p>
@@ -159,6 +169,7 @@ export function AdminLayout() {
   const bottom: (BottomNavItem & { perm: string })[] = [
     { to: '/admin', label: 'בקרה', icon: <LayoutGrid />, end: true, perm: 'dashboard:view' },
     { to: '/admin/calendar', label: 'יומן', icon: <CalendarDays />, perm: 'calendar:view' },
+    { to: '/admin/calendar?new=1', label: 'הזמנה חדשה', icon: <Plus />, primary: true, perm: 'bookings:manage' },
     { to: '/admin/bookings', label: 'בקשות', icon: <ClipboardList />, badge: pending.data?.length, perm: 'requests:review' },
     { to: '/admin/payments', label: 'תשלומים', icon: <CreditCard />, badge: pay.data?.unpaidCount, perm: 'payments:view' },
   ]

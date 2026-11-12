@@ -9,7 +9,7 @@ import { toast } from '@/components/toast'
 import { Badge, Button, Field, Input, Modal, PageHeader, PageLoader, Select, Textarea, Toggle } from '@/components/ui'
 import { api, ApiError, errorMessage } from '@/lib/api'
 import { useCan } from '@/lib/auth'
-import { money, timeRange } from '@/lib/format'
+import { money, timeRange, ltr, time } from '@/lib/format'
 import { roomKindLabel } from '@/lib/labels'
 import { usePrefs } from '@/lib/prefs'
 import { useLookups } from '@/lib/queries'
@@ -54,7 +54,7 @@ export function RoomsPage() {
           return (
             <section key={b.id} className="mb-8">
               <h2 className="mb-3 flex items-baseline gap-2 text-sm font-semibold text-muted">
-                {b.name} <span className="text-xs font-normal">· {b.address} · פתוח {b.opensAt}–{b.closesAt}</span>
+                {b.name} <span className="text-xs font-normal">· {b.address} · פתוח {ltr(`${b.opensAt}–${b.closesAt}`)}</span>
               </h2>
               <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                 {list.map((r) => {
@@ -95,7 +95,7 @@ export function RoomsPage() {
                         <div className="mt-3 rounded-xl bg-subtle px-3 py-2 text-xs">
                           {current ? (
                             <p>
-                              <span className="font-medium">עכשיו:</span> {current.title} · עד {timeRange(current.startsAt, current.endsAt).split('–')[1]}
+                              <span className="font-medium">עכשיו:</span> {current.title} · עד {time(current.endsAt)}
                             </p>
                           ) : next ? (
                             <p>

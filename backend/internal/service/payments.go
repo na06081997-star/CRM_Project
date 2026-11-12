@@ -41,6 +41,23 @@ func (s *Service) PaymentSummary(ctx context.Context, actor Actor) (store.Paymen
 	return s.store.PaymentSummary(ctx, time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, s.loc))
 }
 
+// Billing lists charged bookings by payment state (paid / partial / unpaid / open).
+func (s *Service) Billing(ctx context.Context, actor Actor, f store.BookingFilter) ([]domain.Booking, error) {
+	if err := actor.Require(domain.ActViewPayments); err != nil {
+		return nil, err
+	}
+	switch f.Payment {
+	case "", "all":
+		f.Payment = "any"
+	case "paid", "partial", "unpaid", "open":
+	default:
+		v := domain.NewValidation()
+		v.Add("payment", "סינון לא תקין")
+		return nil, v
+	}
+	return s.store.ListBookings(ctx, f)
+}
+
 // Balances lists bookings that still have money due.
 func (s *Service) Balances(ctx context.Context, actor Actor, customerID *uuid.UUID) ([]domain.Booking, error) {
 	f := store.BookingFilter{OnlyWithBalance: true, CustomerID: customerID}

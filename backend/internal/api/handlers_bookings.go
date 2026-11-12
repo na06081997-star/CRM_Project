@@ -20,6 +20,7 @@ func (s *Server) listBookings(w http.ResponseWriter, r *http.Request) {
 		Types:      qList(r, "types"), Statuses: qList(r, "statuses"),
 		Search: r.URL.Query().Get("q"), Limit: qInt(r, "limit", 0),
 		CancelRequested: r.URL.Query().Get("cancelRequested") == "true",
+		Source:          r.URL.Query().Get("source"),
 	}
 	if f.From.IsZero() && f.To.IsZero() && f.Search == "" && f.CustomerID == nil && !f.CancelRequested {
 		f.From = time.Now().AddDate(0, 0, -7)
@@ -152,6 +153,11 @@ func (s *Server) checkBooking(w http.ResponseWriter, r *http.Request) {
 		fail(w, r, err)
 		return
 	}
+	if !mustActor(r).Can(domain.ActViewCalendar) {
+		for i := range conflicts { // others' bookings stay anonymous
+			conflicts[i].Title, conflicts[i].BookingID = "", uuid.Nil
+		}
+	}
 	if in.Type == "" {
 		in.Type = domain.BookingRental
 	}
@@ -160,7 +166,16 @@ func (s *Server) checkBooking(w http.ResponseWriter, r *http.Request) {
 		fail(w, r, err)
 		return
 	}
-	ok(w, map[string]any{"conflicts": conflicts, "quote": quote})
+	res := map[string]any{"conflicts": conflicts, "quote": quote}
+	if len(conflicts) > 0 {
+		// Free alternatives (same room other times, other rooms same time).
+		if slot, err := s.svc.CheckSlot(r.Context(), mustActor(r), service.SlotQuery{
+			RoomID: in.RoomID, StartsAt: in.StartsAt, EndsAt: in.EndsAt, ExcludeID: in.ExcludeID,
+		}); err == nil {
+			res["sameRoom"], res["otherRooms"] = slot.SameRoom, slot.OtherRooms
+		}
+	}
+	ok(w, res)
 }
 
 // ── Requests ─────────────────────────────────────────────────

@@ -162,6 +162,7 @@ function RequestDetail({ r }: { r: BookingRequest }) {
       <p className="mt-1 text-sm">
         {fmt(r.startsAt, 'dd.MM.yyyy')} · {timeRange(r.startsAt, r.endsAt)}
       </p>
+      {r.repeatUntil && <p className="mt-1 text-sm font-medium">חוג שבועי · כל שבוע עד {fmt(r.repeatUntil, 'dd.MM.yyyy')}</p>}
       <p className="mt-1 text-xs text-muted">
         {r.eventKind || r.title} · {requestRouteLabel[r.route]}
         {r.equipment.length > 0 && ` · ${r.equipment.map(equipmentLabel).join(', ')}`}

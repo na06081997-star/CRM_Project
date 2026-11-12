@@ -12,21 +12,26 @@ import (
 
 const taskSelect = `
 	SELECT t.id, t.title, t.description, t.kind, t.status, t.room_id, t.booking_id, t.schedule_id, t.assignee_id,
-	       t.due_at, t.completed_at, t.completion_note, t.reminder_sent_at, t.created_at, r.name, u.full_name
+	       t.due_at, t.completed_at, t.completion_note, t.reminder_sent_at, t.reported_by, t.created_at,
+	       r.name, u.full_name, rep.full_name, rep.phone, b.title
 	FROM tasks t
 	LEFT JOIN rooms r ON r.id = t.room_id
-	LEFT JOIN users u ON u.id = t.assignee_id`
+	LEFT JOIN users u ON u.id = t.assignee_id
+	LEFT JOIN users rep ON rep.id = t.reported_by
+	LEFT JOIN bookings b ON b.id = t.booking_id`
 
 func scanTask(r pgx.Row) (domain.Task, error) {
 	var t domain.Task
 	err := r.Scan(&t.ID, &t.Title, &t.Description, &t.Kind, &t.Status, &t.RoomID, &t.BookingID, &t.ScheduleID,
-		&t.AssigneeID, &t.DueAt, &t.CompletedAt, &t.CompletionNote, &t.ReminderSentAt, &t.CreatedAt,
-		&t.RoomName, &t.AssigneeName)
+		&t.AssigneeID, &t.DueAt, &t.CompletedAt, &t.CompletionNote, &t.ReminderSentAt, &t.ReportedBy, &t.CreatedAt,
+		&t.RoomName, &t.AssigneeName, &t.ReporterName, &t.ReporterPhone, &t.BookingTitle)
 	return t, mapErr(err)
 }
 
 type TaskFilter struct {
 	AssigneeID *uuid.UUID
+	ReportedBy *uuid.UUID
+	Unassigned bool
 	Statuses   []string
 	From, To   time.Time
 }
@@ -35,6 +40,12 @@ func (s *Store) ListTasks(ctx context.Context, f TaskFilter) ([]domain.Task, err
 	w := &where{}
 	if f.AssigneeID != nil {
 		w.add("t.assignee_id = $%d", *f.AssigneeID)
+	}
+	if f.ReportedBy != nil {
+		w.add("t.reported_by = $%d", *f.ReportedBy)
+	}
+	if f.Unassigned {
+		w.raw("t.assignee_id IS NULL")
 	}
 	if len(f.Statuses) > 0 {
 		w.add("t.status::text = ANY($%d)", f.Statuses)
@@ -56,9 +67,9 @@ func (s *Store) TaskByID(ctx context.Context, id uuid.UUID) (domain.Task, error)
 func (s *Store) CreateTask(ctx context.Context, t domain.Task, createdBy *uuid.UUID) (domain.Task, error) {
 	var id uuid.UUID
 	err := s.q.QueryRow(ctx, `
-		INSERT INTO tasks (title, description, kind, room_id, booking_id, schedule_id, assignee_id, due_at, created_by)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
-		t.Title, t.Description, t.Kind, t.RoomID, t.BookingID, t.ScheduleID, t.AssigneeID, t.DueAt, createdBy).Scan(&id)
+		INSERT INTO tasks (title, description, kind, room_id, booking_id, schedule_id, assignee_id, due_at, created_by, reported_by)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
+		t.Title, t.Description, t.Kind, t.RoomID, t.BookingID, t.ScheduleID, t.AssigneeID, t.DueAt, createdBy, t.ReportedBy).Scan(&id)
 	if err != nil {
 		return domain.Task{}, mapErr(err)
 	}
@@ -95,6 +106,36 @@ func (s *Store) SetTaskStatus(ctx context.Context, id uuid.UUID, status domain.T
 		return domain.Task{}, domain.ErrNotFound
 	}
 	return s.TaskByID(ctx, id)
+}
+
+// AssignTask sets (or clears) the worker of a task.
+func (s *Store) AssignTask(ctx context.Context, id uuid.UUID, assignee *uuid.UUID) (domain.Task, error) {
+	tag, err := s.q.Exec(ctx, `UPDATE tasks SET assignee_id = $2, reminder_sent_at = NULL, updated_at = now() WHERE id = $1`, id, assignee)
+	if err != nil {
+		return domain.Task{}, mapErr(err)
+	}
+	if tag.RowsAffected() == 0 {
+		return domain.Task{}, domain.ErrNotFound
+	}
+	return s.TaskByID(ctx, id)
+}
+
+// CancelBookingTasks cancels the open work (cleaning, setup…) attached to
+// bookings that no longer take place, and returns the tasks it cancelled.
+func (s *Store) CancelBookingTasks(ctx context.Context, bookingIDs []uuid.UUID) ([]domain.Task, error) {
+	rows, err := s.q.Query(ctx, `
+		UPDATE tasks SET status = 'cancelled', updated_at = now()
+		WHERE booking_id = ANY($1) AND status IN ('open', 'in_progress')
+		RETURNING id`, bookingIDs)
+	ids, err := collect(rows, err, func(r pgx.Row) (uuid.UUID, error) {
+		var id uuid.UUID
+		return id, r.Scan(&id)
+	})
+	if err != nil || len(ids) == 0 {
+		return nil, err
+	}
+	rows, err = s.q.Query(ctx, taskSelect+` WHERE t.id = ANY($1) ORDER BY t.due_at`, ids)
+	return collect(rows, err, scanTask)
 }
 
 func (s *Store) DeleteTask(ctx context.Context, id uuid.UUID) error {

@@ -1,7 +1,7 @@
 import clsx from 'clsx'
 import { useQuery } from '@tanstack/react-query'
 import { addDays, startOfDay } from 'date-fns'
-import { AlertTriangle, ArrowLeft, CalendarCheck, CalendarDays, CircleDollarSign, ClipboardList, Radio, Search } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, CalendarCheck, CalendarDays, CircleDollarSign, ClipboardList, Radio, Search, Wrench } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { Badge, Button, Card, Empty, PageHeader, Stat } from '@/components/ui'
 import { api } from '@/lib/api'
@@ -46,6 +46,13 @@ export function HomePage() {
             {can('availability:view') && (
               <Link to="/portal/calendar">
                 <Button icon={<CalendarDays className="h-4 w-4" />}>יומן זמינות</Button>
+              </Link>
+            )}
+            {can('issues:report') && (
+              <Link to="/portal/issues">
+                <Button variant="secondary" icon={<Wrench className="h-4 w-4" />}>
+                  דיווח תקלה
+                </Button>
               </Link>
             )}
           </>

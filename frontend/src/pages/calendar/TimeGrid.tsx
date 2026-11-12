@@ -2,7 +2,7 @@ import clsx from 'clsx'
 import { isToday } from 'date-fns'
 import { Repeat } from 'lucide-react'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { time, timeRange } from '@/lib/format'
+import { time, timeRange, ltr } from '@/lib/format'
 import { typeStyles } from '@/lib/labels'
 import type { Booking } from '@/lib/types'
 import { layoutDay, minutesToDate, snap, SNAP } from './utils'
@@ -253,10 +253,10 @@ export function TimeGrid({ columns, bookings, startHour, endHour, lens, myId, ca
 
                 {/* Ghosts */}
                 {drag?.mode === 'create' && drag.col === ci && (
-                  <Ghost top={Math.min(drag.from, drag.to) - gridStart} height={Math.max(SNAP, Math.abs(drag.to - drag.from))} label={`${fmtMin(Math.min(drag.from, drag.to))}–${fmtMin(Math.max(drag.from, drag.to) || drag.from + SNAP)}`} />
+                  <Ghost top={Math.min(drag.from, drag.to) - gridStart} height={Math.max(SNAP, Math.abs(drag.to - drag.from))} label={ltr(`${fmtMin(Math.min(drag.from, drag.to))}–${fmtMin(Math.max(drag.from, drag.to) || drag.from + SNAP)}`)} />
                 )}
                 {isMoving && drag.mode === 'move' && drag.col === ci && (
-                  <Ghost top={drag.start - gridStart} height={drag.duration} label={`${drag.booking.title} · ${fmtMin(drag.start)}–${fmtMin(drag.start + drag.duration)}`} solid />
+                  <Ghost top={drag.start - gridStart} height={drag.duration} label={`${drag.booking.title} · ${ltr(`${fmtMin(drag.start)}–${fmtMin(drag.start + drag.duration)}`)}`} solid />
                 )}
 
                 {/* Now line */}
@@ -330,8 +330,27 @@ function EventBlock({
   }
   const px = Math.max(height * PX_PER_MIN - 2, 18)
   const compact = px < 40
+  // Turnover (cleaning / setup) slot after the booking: it blocks the room too
+  // and disappears with the booking when it is cancelled.
+  const bufferPx = b.bufferMinutes > 0 && !blocked && (b.status === 'confirmed' || b.status === 'pending') && resizingEnd === undefined && !dimmed ? b.bufferMinutes * PX_PER_MIN : 0
 
   return (
+    <>
+    {bufferPx > 0 && (
+      <div
+        aria-hidden
+        data-buffer={b.id}
+        className="hatch pointer-events-none absolute z-[5] flex items-start justify-center overflow-hidden rounded-b-lg border border-t-0 border-dashed border-line text-[9px] leading-none text-muted"
+        style={{
+          top: p.top * PX_PER_MIN + px + 1,
+          height: Math.max(bufferPx - 1, 4),
+          insetInlineStart: `calc(${p.col * width}% + 6px)`,
+          width: `calc(${width}% - 12px)`,
+        }}
+      >
+        {bufferPx >= 12 && <span className="mt-px rounded bg-surface/80 px-1">ניקיון {b.bufferMinutes}′</span>}
+      </div>
+    )}
     <div
       data-booking={b.id}
       onPointerDown={onPointerDown}
@@ -380,5 +399,6 @@ function EventBlock({
         </div>
       )}
     </div>
+    </>
   )
 }

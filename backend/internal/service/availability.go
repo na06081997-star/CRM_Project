@@ -191,14 +191,20 @@ func (s *Service) ResolveCancellation(ctx context.Context, actor Actor, id uuid.
 		return v
 	}
 	requester := b.CancelRequestedBy
+	var dropped []domain.Task
 	if approve {
-		err = s.store.SetBookingStatus(ctx, id, domain.StatusCancelled)
+		err = s.store.InTx(ctx, func(tx *store.Store) error {
+			var err error
+			dropped, err = cancelBookings(ctx, tx, []domain.Booking{b})
+			return err
+		})
 	} else {
 		err = s.store.SetCancelRequest(ctx, id, nil, "")
 	}
 	if err != nil {
 		return err
 	}
+	s.bookingTasksCancelled(ctx, dropped)
 	action := "cancel_declined"
 	if approve {
 		action = "cancel_approved"

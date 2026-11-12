@@ -304,6 +304,18 @@ func (sd *seeder) run(today time.Time) {
 			return
 		}
 	}
+	// Tickets opened by coordinators: one still waiting for a worker.
+	for _, t := range []domain.Task{
+		{Title: "המקרן בחדר החוגים לא נדלק", Kind: "repair", RoomID: &classroom.ID, DueAt: at(today, 8, 30), ReportedBy: &yoav.ID,
+			Description: "נורית אדומה מהבהבת, ניסיתי לנתק ולחבר מחדש"},
+		{Title: "חסר טונר במדפסת של חדר הרכזים", Kind: "supplies", DueAt: at(today, 9, 0), ReportedBy: &amit.ID},
+		{Title: "ניקיון סטודיו מחול אחרי סדנה", Kind: "cleaning", RoomID: &studio.ID, AssigneeID: &avi.ID, DueAt: at(today, 13, 0), ReportedBy: &rotem.ID,
+			Description: "נשפכו משקאות ליד המראות"},
+	} {
+		if _, sd.err = tx.CreateTask(ctx, t, t.ReportedBy); sd.err != nil {
+			return
+		}
+	}
 
 	// ── Signage ──
 	if _, sd.err = tx.SaveScreen(ctx, domain.SignageScreen{Slug: "lobby", Name: "מסך לובי ראשי", BuildingID: &main.ID, Theme: "dark",

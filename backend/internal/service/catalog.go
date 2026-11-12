@@ -219,29 +219,85 @@ var allowedTypes = map[string]bool{
 	"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":       true,
 }
 
-var allowedEntities = map[string]bool{"booking": true, "request": true, "room": true, "announcement": true, "customer": true, "task": true, "organization": true}
+// publicEntities are files shown without login (signage, room photos, logos).
+var publicEntities = map[string]bool{"announcement": true, "room": true, "organization": true}
+
+var allowedEntities = map[string]bool{
+	"booking": true, "request": true, "room": true, "announcement": true, "customer": true, "organization": true,
+	"task":      true, // ticket photos (what is broken / missing)
+	"task_done": true, // proof photos taken when the task is completed
+	"contract":  true, // signature and scanned signed contracts
+}
+
+// fileAccess checks whether actor may read (write=false) or add/remove
+// (write=true) the files attached to entity/entityID.
+func (s *Service) fileAccess(ctx context.Context, actor *Actor, entity string, entityID uuid.UUID, write bool) error {
+	if !allowedEntities[entity] {
+		v := domain.NewValidation()
+		v.Add("entity", "סוג ישות לא נתמך")
+		return v
+	}
+	if !write && publicEntities[entity] {
+		return nil
+	}
+	if actor == nil {
+		return domain.ErrUnauthorized
+	}
+	a := *actor
+	switch entity {
+	case "organization":
+		return a.Require(domain.ActManageSettings)
+	case "room":
+		return a.Require(domain.ActManageRooms)
+	case "announcement":
+		return a.Require(domain.ActManageSignage)
+	case "booking":
+		if write {
+			return a.Require(domain.ActManageBookings)
+		}
+		return a.Require(domain.ActViewCalendar)
+	case "customer":
+		if write {
+			return a.Require(domain.ActManageCustomers)
+		}
+		return a.Require(domain.ActViewCalendar)
+	case "request":
+		if a.Can(domain.ActReviewRequests) || (!write && a.Can(domain.ActViewCalendar)) {
+			return nil
+		}
+		if req, err := s.store.RequestByID(ctx, entityID); err == nil && req.UserID == a.User.ID {
+			return nil
+		}
+		return domain.ErrForbidden
+	case "task", "task_done":
+		if a.Can(domain.ActManageTasks) {
+			return nil
+		}
+		t, err := s.store.TaskByID(ctx, entityID)
+		if err != nil {
+			return domain.ErrForbidden
+		}
+		assignee := t.AssigneeID != nil && *t.AssigneeID == a.User.ID
+		reporter := t.ReportedBy != nil && *t.ReportedBy == a.User.ID
+		// The reporter adds what is wrong; the worker adds the proof it is done.
+		if (entity == "task" && (reporter || (!write && assignee))) || (entity == "task_done" && (assignee || (!write && reporter))) {
+			return nil
+		}
+		return domain.ErrForbidden
+	case "contract":
+		return a.Require(domain.ActManageCoords)
+	}
+	return domain.ErrForbidden
+}
 
 func (s *Service) Upload(ctx context.Context, actor Actor, entity string, entityID uuid.UUID, filename, contentType string, r io.Reader, size int64) (domain.Attachment, error) {
 	if entity == "organization" {
-		if err := actor.Require(domain.ActManageSettings); err != nil {
-			return domain.Attachment{}, err
-		}
 		entityID = OrganizationEntityID
 	}
-	// Portal users may attach files to their own requests only.
-	if !actor.Can(domain.ActUploadFiles) {
-		if entity != "request" {
-			return domain.Attachment{}, domain.ErrForbidden
-		}
-		req, err := s.store.RequestByID(ctx, entityID)
-		if err != nil || req.UserID != actor.User.ID {
-			return domain.Attachment{}, domain.ErrForbidden
-		}
+	if err := s.fileAccess(ctx, &actor, entity, entityID, true); err != nil {
+		return domain.Attachment{}, err
 	}
 	v := domain.NewValidation()
-	if !allowedEntities[entity] {
-		v.Add("entity", "סוג ישות לא נתמך")
-	}
 	if !allowedTypes[contentType] {
 		v.Add("file", "סוג קובץ לא נתמך (PNG, JPG, WEBP, PDF, DOCX, XLSX)")
 	}
@@ -251,19 +307,37 @@ func (s *Service) Upload(ctx context.Context, actor Actor, entity string, entity
 	if err := v.OrNil(); err != nil {
 		return domain.Attachment{}, err
 	}
+	return s.storeFile(ctx, actor.User.ID, entity, entityID, filename, contentType, r, size, &actor)
+}
+
+// storeFile puts the object in S3 and records the attachment.
+func (s *Service) storeFile(ctx context.Context, by uuid.UUID, entity string, entityID uuid.UUID, filename, contentType string, r io.Reader, size int64, actor *Actor) (domain.Attachment, error) {
 	key, err := s.files.Put(ctx, entity, filename, contentType, r, size)
 	if err != nil {
 		return domain.Attachment{}, fmt.Errorf("upload: %w", err)
 	}
 	a, err := s.store.CreateAttachment(ctx, domain.Attachment{
 		Entity: entity, EntityID: entityID, ObjectKey: key, Filename: filename, ContentType: contentType, SizeBytes: size,
-	}, actor.User.ID)
+	}, by)
 	if err != nil {
 		s.files.Delete(ctx, key) //nolint:errcheck
 		return a, err
 	}
-	s.audit(ctx, actor, entity, entityID, "attach", map[string]any{"file": filename})
+	if actor != nil {
+		s.audit(ctx, *actor, entity, entityID, "attach", map[string]any{"file": filename})
+	}
 	return a, nil
+}
+
+// ListFiles lists the attachments of an entity the actor may see.
+func (s *Service) ListFiles(ctx context.Context, actor Actor, entity string, entityID uuid.UUID) ([]domain.Attachment, error) {
+	if entity == "organization" {
+		entityID = OrganizationEntityID
+	}
+	if err := s.fileAccess(ctx, &actor, entity, entityID, false); err != nil {
+		return nil, err
+	}
+	return s.store.ListAttachments(ctx, entity, entityID)
 }
 
 // OpenFile returns the object stream for an attachment the actor may see.
@@ -272,28 +346,19 @@ func (s *Service) OpenFile(ctx context.Context, actor *Actor, id uuid.UUID) (dom
 	if err != nil {
 		return a, nil, storage.ObjectInfo{}, err
 	}
-	public := a.Entity == "announcement" || a.Entity == "room" || a.Entity == "organization"
-	if !public {
-		if actor == nil {
-			return a, nil, storage.ObjectInfo{}, domain.ErrUnauthorized
-		}
-		if !actor.Can(domain.ActViewCalendar) {
-			req, err := s.store.RequestByID(ctx, a.EntityID)
-			if a.Entity != "request" || err != nil || req.UserID != actor.User.ID {
-				return a, nil, storage.ObjectInfo{}, domain.ErrForbidden
-			}
-		}
+	if err := s.fileAccess(ctx, actor, a.Entity, a.EntityID, false); err != nil {
+		return a, nil, storage.ObjectInfo{}, err
 	}
 	rc, info, err := s.files.Get(ctx, a.ObjectKey)
 	return a, rc, info, err
 }
 
 func (s *Service) DeleteFile(ctx context.Context, actor Actor, id uuid.UUID) error {
-	if err := actor.Require(domain.ActUploadFiles); err != nil {
-		return err
-	}
 	a, err := s.store.AttachmentByID(ctx, id)
 	if err != nil {
+		return err
+	}
+	if err := s.fileAccess(ctx, &actor, a.Entity, a.EntityID, true); err != nil {
 		return err
 	}
 	if err := s.store.DeleteAttachment(ctx, id); err != nil {

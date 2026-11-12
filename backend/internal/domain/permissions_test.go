@@ -21,6 +21,13 @@ func TestCan(t *testing.T) {
 		{RoleCoordinator, ActReviewRequests, false},
 		{RoleCoordinator, ActViewPayments, false},
 		{RoleCoordinator, ActViewDashboard, false},
+		{RoleCoordinator, ActRequestRental, false},
+		{RoleCoordinator, ActReportIssue, true},
+		{RoleCoordinator, ActManageCoords, false},
+		{RoleAdmin, ActManageCoords, true},
+		{RoleAdmin, ActRequestRental, true},
+		{RoleUser, ActRequestRental, true},
+		{RoleUser, ActReportIssue, false},
 		{RoleStaff, ActWorkTasks, true},
 		{RoleStaff, ActManageBookings, false},
 		{RoleUser, ActSubmitRequest, true},
@@ -46,7 +53,7 @@ func TestPermissionsListMatchesCan(t *testing.T) {
 	if len(Permissions(RoleSuperAdmin)) != len(allActions) {
 		t.Error("super admin must hold every permission")
 	}
-	if len(Permissions(RoleUser)) != 2 {
-		t.Errorf("user should have exactly two permissions, got %v", Permissions(RoleUser))
+	if len(Permissions(RoleUser)) != 3 {
+		t.Errorf("user should have exactly three permissions, got %v", Permissions(RoleUser))
 	}
 }

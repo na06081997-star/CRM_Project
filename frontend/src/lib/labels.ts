@@ -63,8 +63,23 @@ export const taskKindLabel: Record<string, string> = {
   cleaning: 'ניקיון',
   setup: 'הקמה וסידור',
   repair: 'תיקון',
+  supplies: 'ציוד מתכלה',
   inspection: 'בדיקה',
   other: 'אחר',
+}
+
+/** What a coordinator can report to the operations team. */
+export const issueKinds: { value: string; label: string; hint: string }[] = [
+  { value: 'repair', label: 'משהו שבור / תקלה', hint: 'כיסא שבור, נורה, מזגן, ברז…' },
+  { value: 'supplies', label: 'ציוד מתכלה', hint: 'טונר, נייר, סבון, נייר טואלט…' },
+  { value: 'cleaning', label: 'ניקיון', hint: 'שפיכה, פסולת, ניקיון אחרי פעילות…' },
+  { value: 'other', label: 'אחר', hint: 'כל בקשה אחרת לצוות התפעול' },
+]
+
+export const contractStatusLabel: Record<string, string> = {
+  pending: 'ממתין לחתימה',
+  signed: 'נחתם',
+  cancelled: 'בוטל',
 }
 
 export const roomKindLabel: Record<string, string> = {

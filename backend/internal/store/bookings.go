@@ -46,6 +46,10 @@ type BookingFilter struct {
 	Search          string
 	OnlyWithBalance bool
 	CancelRequested bool
+	// Source: "direct" (entered by the office) or "request" (approved from a request).
+	Source string
+	// Payment: "paid", "partial", "unpaid", "open" (not fully paid) or "any"; charged bookings only.
+	Payment string
 	// OwnerUserID limits to bookings the user runs (coordinator) or booked (portal customer).
 	OwnerUserID *uuid.UUID
 	Limit       int
@@ -93,6 +97,26 @@ func (s *Store) ListBookings(ctx context.Context, f BookingFilter) ([]domain.Boo
 	}
 	if f.CancelRequested {
 		w.raw("b.cancel_requested_at IS NOT NULL AND b.status IN ('pending', 'confirmed')")
+	}
+	switch f.Source {
+	case "direct":
+		w.raw("b.request_id IS NULL")
+	case "request":
+		w.raw("b.request_id IS NOT NULL")
+	}
+	if f.Payment != "" {
+		const paid = "COALESCE((SELECT sum(p.amount) FROM payments p WHERE p.booking_id = b.id), 0)"
+		w.raw("b.price > 0 AND b.status IN ('pending', 'confirmed')")
+		switch f.Payment {
+		case "paid":
+			w.raw(paid + " >= b.price")
+		case "partial":
+			w.raw(paid + " > 0 AND " + paid + " < b.price")
+		case "unpaid":
+			w.raw(paid + " = 0")
+		case "open":
+			w.raw(paid + " < b.price")
+		}
 	}
 	if f.OnlyWithBalance {
 		w.raw("b.price > COALESCE((SELECT sum(p.amount) FROM payments p WHERE p.booking_id = b.id), 0)")

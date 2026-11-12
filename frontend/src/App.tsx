@@ -10,7 +10,6 @@ const Dashboard = lazy(() => import('./pages/admin/DashboardPage').then((m) => (
 const Calendar = lazy(() => import('./pages/calendar/CalendarPage').then((m) => ({ default: m.CalendarPage })))
 const Bookings = lazy(() => import('./pages/admin/BookingsPage').then((m) => ({ default: m.BookingsPage })))
 const Rooms = lazy(() => import('./pages/admin/RoomsPage').then((m) => ({ default: m.RoomsPage })))
-const Activities = lazy(() => import('./pages/admin/ActivitiesPage').then((m) => ({ default: m.ActivitiesPage })))
 const Customers = lazy(() => import('./pages/admin/CustomersPage').then((m) => ({ default: m.CustomersPage })))
 const Coordinators = lazy(() => import('./pages/admin/CoordinatorsPage').then((m) => ({ default: m.CoordinatorsPage })))
 const Payments = lazy(() => import('./pages/admin/PaymentsPage').then((m) => ({ default: m.PaymentsPage })))
@@ -27,9 +26,11 @@ const PortalNewRequest = lazy(() => import('./pages/portal/NewRequestPage').then
 const PortalRequests = lazy(() => import('./pages/portal/RequestsPage').then((m) => ({ default: m.RequestsPage })))
 const PortalBookings = lazy(() => import('./pages/portal/BookingsPage').then((m) => ({ default: m.BookingsPage })))
 const PortalPayments = lazy(() => import('./pages/portal/PaymentsPage').then((m) => ({ default: m.PaymentsPage })))
+const PortalIssues = lazy(() => import('./pages/portal/IssuesPage').then((m) => ({ default: m.IssuesPage })))
 const PortalHelp = lazy(() => import('./pages/portal/HelpPage').then((m) => ({ default: m.HelpPage })))
 const PortalCalendar = lazy(() => import('./pages/calendar/CalendarPage').then((m) => ({ default: () => <m.CalendarPage mode="portal" /> })))
 const Staff = lazy(() => import('./pages/staff/StaffPage').then((m) => ({ default: m.StaffPage })))
+const Sign = lazy(() => import('./pages/SignPage').then((m) => ({ default: m.SignPage })))
 const Signage = lazy(() => import('./pages/signage/SignagePage').then((m) => ({ default: m.SignagePage })))
 
 function RequireAuth({ children, roles }: { children: ReactNode; roles?: string[] }) {
@@ -66,6 +67,7 @@ export function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signage" element={<Signage />} />
         <Route path="/signage/:slug" element={<Signage />} />
+        <Route path="/sign/:token" element={<Sign />} />
 
         <Route
           path="/admin"
@@ -79,7 +81,7 @@ export function App() {
           <Route path="calendar" element={<Calendar />} />
           <Route path="bookings" element={<Bookings />} />
           <Route path="rooms" element={<Rooms />} />
-          <Route path="activities" element={<Activities />} />
+          <Route path="activities" element={<Navigate to="/admin/calendar" replace />} />
           <Route path="customers" element={<Customers />} />
           <Route path="coordinators" element={<Coordinators />} />
           <Route path="payments" element={<Payments />} />
@@ -107,6 +109,7 @@ export function App() {
           <Route path="requests" element={<PortalRequests />} />
           <Route path="bookings" element={<PortalBookings />} />
           <Route path="payments" element={<PortalPayments />} />
+          <Route path="issues" element={<PortalIssues />} />
           <Route path="help" element={<PortalHelp />} />
         </Route>
         <Route

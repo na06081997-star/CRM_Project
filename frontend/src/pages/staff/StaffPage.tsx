@@ -1,15 +1,16 @@
 import clsx from 'clsx'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { addDays, isToday, isTomorrow, startOfDay } from 'date-fns'
-import { BellRing, Check, CheckCircle2, Clock, DoorOpen, LayoutDashboard, PartyPopper, Play, RotateCcw } from 'lucide-react'
+import { BellRing, Check, CheckCircle2, Clock, DoorOpen, LayoutDashboard, PartyPopper, Phone, Play, RotateCcw, UserRound } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { SimpleHeader } from '@/components/layout/SimpleHeader'
+import { PhotoGallery, PhotoPicker, uploadPhotos } from '@/components/Photos'
 import { toast } from '@/components/toast'
 import { Badge, Button, Empty, Modal, PageLoader, Tabs, Textarea } from '@/components/ui'
 import { api, errorMessage } from '@/lib/api'
 import { useCan, useUser } from '@/lib/auth'
-import { fmt, relative, time } from '@/lib/format'
+import { fmt, ltr, relative, time } from '@/lib/format'
 import { taskKindLabel } from '@/lib/labels'
 import { useSocket } from '@/lib/realtime'
 import type { Task, TaskStatus } from '@/lib/types'
@@ -22,6 +23,7 @@ export function StaffPage() {
   const [range, setRange] = useState<'today' | 'week' | 'done'>('today')
   const [finishing, setFinishing] = useState<Task | null>(null)
   const [note, setNote] = useState('')
+  const [photos, setPhotos] = useState<File[]>([])
   useSocket('/ws', (ev) => {
     if (ev.type === 'task.changed') qc.invalidateQueries({ queryKey: ['tasks'] })
     if (ev.type === 'notification') {
@@ -43,12 +45,18 @@ export function StaffPage() {
   })
 
   const setStatus = useMutation({
-    mutationFn: ({ id, status, note }: { id: string; status: TaskStatus; note?: string }) => api.post<Task>(`/tasks/${id}/status`, { status, note }),
+    mutationFn: async ({ id, status, note, proof }: { id: string; status: TaskStatus; note?: string; proof?: File[] }) => {
+      // Proof photos go first: if the upload fails nothing is marked done.
+      if (proof?.length) await uploadPhotos('task_done', id, proof)
+      return api.post<Task>(`/tasks/${id}/status`, { status, note })
+    },
     onSuccess: (t) => {
       if (t.status === 'done') toast.success('כל הכבוד! המשימה סומנה כבוצעה ✓')
       qc.invalidateQueries({ queryKey: ['tasks'] })
+      qc.invalidateQueries({ queryKey: ['files'] })
       setFinishing(null)
       setNote('')
+      setPhotos([])
     },
     onError: (e) => toast.error(errorMessage(e)),
   })
@@ -118,7 +126,33 @@ export function StaffPage() {
                             </span>
                           )}
                         </div>
-                        {t.description && <p className="mt-2 text-sm text-muted">{t.description}</p>}
+                        {t.description && <p className="mt-2 whitespace-pre-line text-sm text-muted">{t.description}</p>}
+                        {t.reporterName && (
+                          <div className="mt-2 flex items-center gap-2 rounded-xl bg-subtle px-3 py-2 text-sm">
+                            <UserRound className="h-4 w-4 shrink-0 text-muted" />
+                            <div className="min-w-0 flex-1 leading-tight">
+                              <p className="truncate">
+                                פנה/תה: <b>{t.reporterName}</b>
+                              </p>
+                              {t.reporterPhone && <p className="text-xs tabular-nums text-muted">{ltr(t.reporterPhone)}</p>}
+                            </div>
+                            {t.reporterPhone && (
+                              <a href={`tel:${t.reporterPhone}`} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand text-white dark:text-slate-900" aria-label={`התקשרות ל${t.reporterName}`}>
+                                <Phone className="h-5 w-5" />
+                              </a>
+                            )}
+                          </div>
+                        )}
+                        {t.reportedBy && (
+                          <div className="mt-2">
+                            <PhotoGallery entity="task" entityId={t.id} />
+                          </div>
+                        )}
+                        {t.status === 'done' && (
+                          <div className="mt-2">
+                            <PhotoGallery entity="task_done" entityId={t.id} />
+                          </div>
+                        )}
                         {t.status === 'done' && t.completedAt && <p className="mt-2 text-xs text-ok">בוצע {relative(t.completedAt)}</p>}
                       </div>
                     </div>
@@ -148,18 +182,34 @@ export function StaffPage() {
 
       <Modal
         open={!!finishing}
-        onClose={() => setFinishing(null)}
+        onClose={() => {
+          setFinishing(null)
+          setPhotos([])
+        }}
         title="סימון משימה כבוצעה"
         size="sm"
         footer={
-          <Button size="lg" className="w-full" icon={<CheckCircle2 className="h-5 w-5" />} loading={setStatus.isPending} onClick={() => finishing && setStatus.mutate({ id: finishing.id, status: 'done', note })}>
+          <Button size="lg" className="w-full" icon={<CheckCircle2 className="h-5 w-5" />} loading={setStatus.isPending} onClick={() => finishing && setStatus.mutate({ id: finishing.id, status: 'done', note, proof: photos })}>
             אישור – בוצע
           </Button>
         }
       >
         <p className="mb-3 font-medium">{finishing?.title}</p>
+        <div className="mb-4">
+          <span className="label">{proofLabel(finishing?.kind)}</span>
+          <PhotoPicker files={photos} onChange={setPhotos} label="צילום" />
+          <p className="mt-1 text-xs text-muted">התמונה נשמרת במשימה ומוצגת למנהל{finishing?.reporterName ? ' ולפונה' : ''}.</p>
+        </div>
         <Textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="הערה למנהל (לא חובה) – לדוגמה: חסר נייר טואלט, נורה נוספת דורשת החלפה…" rows={3} />
       </Modal>
     </div>
   )
+}
+
+/** What the proof photo should show, by kind of task. */
+function proofLabel(kind?: string) {
+  if (kind === 'cleaning') return 'תמונה שהכל נקי'
+  if (kind === 'repair' || kind === 'inspection') return 'תמונה שהכל מתוקן'
+  if (kind === 'setup') return 'תמונה של הסידור המוכן'
+  return 'תמונה לאחר הביצוע'
 }

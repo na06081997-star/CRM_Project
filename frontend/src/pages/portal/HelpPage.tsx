@@ -1,6 +1,7 @@
 import { Clock, MapPin } from 'lucide-react'
 import { Card, PageHeader } from '@/components/ui'
 import { useBuildings } from '@/lib/queries'
+import { ltr } from '@/lib/format'
 
 const FAQ = [
   ['האם שליחת בקשה שומרת את החלל?', 'לא. בקשה ממתינה אינה שומרת את החלל. רק הזמנה מאושרת על ידי המתנ״ס או חסימת מנהל מונעות הזמנה נוספת.'],
@@ -22,7 +23,7 @@ export function HelpPage() {
               <MapPin className="h-4 w-4 text-muted" /> {b.address || '—'}
             </p>
             <p className="mt-2 flex items-center gap-2 text-sm">
-              <Clock className="h-4 w-4 text-muted" /> שעות פעילות: {b.opensAt}–{b.closesAt}
+              <Clock className="h-4 w-4 text-muted" /> שעות פעילות: {ltr(`${b.opensAt}–${b.closesAt}`)}
             </p>
             <p className="mt-3 text-xs text-muted">לשאלות על הזמנה קיימת פנו למזכירות המתנ״ס עם מספר הבקשה (#).</p>
           </Card>

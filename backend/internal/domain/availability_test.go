@@ -46,3 +46,48 @@ func TestBusyIntervalsIncludesBuffer(t *testing.T) {
 		t.Fatalf("unexpected busy intervals %+v", got)
 	}
 }
+
+func TestSuggestSlotsAvoidsBuffers(t *testing.T) {
+	day := time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC)
+	at := func(h, m int) time.Time { return day.Add(time.Duration(h)*time.Hour + time.Duration(m)*time.Minute) }
+	// Busy 10:00–12:00 plus its 15-minute cleaning slot.
+	busy := []Interval{{Start: at(10, 0), End: at(12, 15)}}
+	want := Interval{Start: at(11, 0), End: at(12, 0)}
+	got := SuggestSlots(want, 15*time.Minute, busy, at(8, 0), at(14, 0), at(0, 0), 15*time.Minute, 3)
+	if len(got) != 3 {
+		t.Fatalf("want 3 suggestions, got %v", got)
+	}
+	for _, s := range got {
+		// The slot itself and its own buffer must stay clear of 10:00–12:15.
+		if s.Start.Before(at(12, 15)) && at(10, 0).Before(s.End.Add(15*time.Minute)) {
+			t.Errorf("suggestion %v–%v overlaps the busy period or its buffer", s.Start, s.End)
+		}
+	}
+	// Nearest to 11:00: right after the cleaning slot.
+	if !got[0].Start.Equal(at(12, 15)) || !got[1].Start.Equal(at(12, 30)) || !got[2].Start.Equal(at(12, 45)) {
+		t.Errorf("unexpected suggestions: %v", got)
+	}
+	// Before the booking, the latest option ends with its own buffer at 10:00.
+	more := SuggestSlots(want, 15*time.Minute, busy, at(8, 0), at(14, 0), at(0, 0), 15*time.Minute, 20)
+	if !more[0].Start.Equal(at(8, 0)) || !containsStart(more, at(8, 45)) || containsStart(more, at(9, 0)) {
+		t.Errorf("morning suggestions should stop at 08:45: %v", more)
+	}
+}
+
+func TestSuggestSlotsRespectsNotBefore(t *testing.T) {
+	day := time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC)
+	at := func(h int) time.Time { return day.Add(time.Duration(h) * time.Hour) }
+	got := SuggestSlots(Interval{Start: at(9), End: at(10)}, 0, nil, at(8), at(12), at(10), time.Hour, 5)
+	if len(got) != 2 || !got[0].Start.Equal(at(10)) || !got[1].Start.Equal(at(11)) {
+		t.Errorf("got %v", got)
+	}
+}
+
+func containsStart(list []Interval, t time.Time) bool {
+	for _, iv := range list {
+		if iv.Start.Equal(t) {
+			return true
+		}
+	}
+	return false
+}

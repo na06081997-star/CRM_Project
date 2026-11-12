@@ -43,6 +43,8 @@ func (s *Server) Routes() http.Handler {
 		r.Get("/config", s.publicConfig)
 		r.Get("/signage", s.publicSignage)
 		r.Get("/files/{id}", s.downloadFile)
+		r.Get("/contracts/{token}", s.publicContract)
+		r.Post("/contracts/{token}/sign", s.signContract)
 	})
 	r.Get("/ws/signage", func(w http.ResponseWriter, r *http.Request) {
 		s.hub.Serve(w, r, []string{realtime.TopicSignage})
@@ -65,6 +67,7 @@ func (s *Server) Routes() http.Handler {
 			r.Get("/reports", s.report)
 			r.Get("/availability", s.availability)
 			r.Get("/availability/calendar", s.availabilityCalendar)
+			r.Post("/availability/check", s.checkSlot)
 
 			r.Route("/bookings", func(r chi.Router) {
 				r.Get("/", s.listBookings)
@@ -115,13 +118,16 @@ func (s *Server) Routes() http.Handler {
 				r.Post("/", s.recordPayment)
 				r.Get("/summary", s.paymentSummary)
 				r.Get("/balances", s.balances)
+				r.Get("/billing", s.billing)
 				r.Delete("/{id}", s.deletePayment)
 			})
 			r.Route("/tasks", func(r chi.Router) {
 				r.Get("/", s.listTasks)
 				r.Post("/", s.saveTask)
+				r.Post("/issues", s.reportIssue)
 				r.Put("/{id}", s.saveTask)
 				r.Post("/{id}/status", s.taskStatus)
+				r.Post("/{id}/assign", s.assignTask)
 				r.Delete("/{id}", s.deleteTask)
 			})
 			r.Route("/task-schedules", func(r chi.Router) {
@@ -129,6 +135,14 @@ func (s *Server) Routes() http.Handler {
 				r.Post("/", s.saveSchedule)
 				r.Put("/{id}", s.saveSchedule)
 				r.Delete("/{id}", s.deleteSchedule)
+			})
+			r.Post("/coordinators", s.createCoordinator)
+			r.Route("/contracts", func(r chi.Router) {
+				r.Get("/", s.listContracts)
+				r.Post("/", s.createContract)
+				r.Post("/{id}/resend", s.resendContract)
+				r.Post("/{id}/mark-signed", s.markContractSigned)
+				r.Post("/{id}/cancel", s.cancelContract)
 			})
 			r.Route("/users", func(r chi.Router) {
 				r.Get("/", s.listUsers)

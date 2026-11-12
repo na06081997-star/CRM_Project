@@ -5,10 +5,11 @@ import { AlertTriangle, Check, CheckCircle2, ClipboardList, Mail, Phone, Search,
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Attachments } from '@/components/Attachments'
+import { needsSummary } from '@/components/NeedsChecklist'
 import { toast } from '@/components/toast'
 import { Badge, Button, Drawer, Empty, Field, Input, PageHeader, PageLoader, Select, Tabs, Textarea } from '@/components/ui'
 import { api, ApiError, errorMessage } from '@/lib/api'
-import { dateLong, dateShort, dateTime, money, relative, timeRange } from '@/lib/format'
+import { dateLong, dateShort, dateTime, fmt, money, relative, timeRange } from '@/lib/format'
 import { bookingStatusLabel, bookingTypeShort, requestRouteLabel, requestStatusLabel, roleLabel, typeStyles } from '@/lib/labels'
 import { useLookups, useUsers } from '@/lib/queries'
 import type { Booking, BookingRequest, Conflict, RequestStatus } from '@/lib/types'
@@ -135,7 +136,7 @@ function Info({ label, value }: { label: string; value: string }) {
 
 function ReviewDrawer({ request, onClose }: { request: BookingRequest | null; onClose: () => void }) {
   const qc = useQueryClient()
-  const { equipmentLabel } = useLookups()
+  const { equipment } = useLookups()
   const coordinators = useUsers('coordinator').data ?? []
   const [price, setPrice] = useState('')
   const [notes, setNotes] = useState('')
@@ -167,8 +168,13 @@ function ReviewDrawer({ request, onClose }: { request: BookingRequest | null; on
         rejectionReason: reason,
         coordinatorId: coordinatorId || null,
       }),
-    onSuccess: (_, approve) => {
-      toast.success(approve ? 'הבקשה אושרה והוזמנה ביומן ✓' : 'הבקשה נדחתה, המבקש/ת עודכנו')
+    onSuccess: (r, approve) => {
+      if (!approve) toast.success('הבקשה נדחתה, המבקש/ת עודכנו')
+      else if ((r.approvedCount ?? 1) > 1)
+        toast.success(
+          `אושרו ${r.approvedCount} מפגשים שבועיים ✓` + (r.skippedDates?.length ? ` · ${r.skippedDates.length} תאריכים תפוסים לא נכללו (${r.skippedDates.map((d) => fmt(d, 'dd.MM')).join(', ')})` : ''),
+        )
+      else toast.success('הבקשה אושרה והוזמנה ביומן ✓')
       for (const k of ['requests', 'bookings', 'dashboard', 'balances']) qc.invalidateQueries({ queryKey: [k] })
       onClose()
     },
@@ -234,11 +240,13 @@ function ReviewDrawer({ request, onClose }: { request: BookingRequest | null; on
           <Info label="תאריך" value={dateLong(request.startsAt)} />
           <Info label="שעות" value={timeRange(request.startsAt, request.endsAt)} />
           <Info label="משתתפים" value={String(request.attendees)} />
-          <Info label="ציוד" value={request.equipment.map(equipmentLabel).join(', ') || '—'} />
           <Info label="מסלול" value={requestRouteLabel[request.route]} />
-          {request.route === 'activity' && <Info label="פעילות" value={request.activityName ?? 'חד־פעמית'} />}
-          {(request.tablesCount > 0 || request.chairsCount > 0) && <Info label="שולחנות / כיסאות" value={`${request.tablesCount} / ${request.chairsCount}`} />}
+          {request.repeatUntil && <Info label="חוג שבועי" value={`כל שבוע עד ${fmt(request.repeatUntil, 'dd.MM.yyyy')}`} />}
         </section>
+        <p className="rounded-xl border border-line p-3 text-sm">
+          <span className="text-xs text-muted">דרישות: </span>
+          {needsSummary({ chairs: request.chairsCount, tables: request.tablesCount, equipment: request.equipment }, equipment)}
+        </p>
         {request.notes && <p className="rounded-xl bg-subtle p-3 text-sm">“{request.notes}”</p>}
 
         {pending && (

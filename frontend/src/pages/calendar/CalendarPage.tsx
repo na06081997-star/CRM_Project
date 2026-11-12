@@ -9,7 +9,7 @@ import { toast } from '@/components/toast'
 import { Button, IconButton, Select, Spinner, Tabs } from '@/components/ui'
 import { api, ApiError, errorMessage } from '@/lib/api'
 import { useCan, useUser } from '@/lib/auth'
-import { fmt, timeRange } from '@/lib/format'
+import { fmt, timeRange, ltr } from '@/lib/format'
 import { bookingStatusLabel, bookingTypeLabel, typeStyles, weekdayShort } from '@/lib/labels'
 import { useIsPhone } from '@/lib/media'
 import { usePrefs } from '@/lib/prefs'
@@ -65,6 +65,8 @@ export function CalendarPage({ mode = 'admin' }: { mode?: 'admin' | 'portal' }) 
   const buildingId = params.get('building') ?? prefBuilding ?? ''
   const roomIds = list('rooms')
   const coordinatorId = params.get('coordinator') ?? ''
+  // '' = every booking, 'direct' = entered by the office, 'request' = approved from a request
+  const source = portal ? '' : (params.get('source') ?? '')
   const types = list('types') as BookingType[]
   const statuses = (params.has('statuses') ? list('statuses') : ['confirmed', 'pending']) as BookingStatus[]
   const lens: Lens = portal ? 'coordinator' : (params.get('lens') as Lens) || 'admin'
@@ -87,7 +89,7 @@ export function CalendarPage({ mode = 'admin' }: { mode?: 'admin' | 'portal' }) 
     [rooms, buildingId, roomIds],
   )
 
-  const queryKey = ['bookings', from.toISOString(), to.toISOString(), buildingId, roomIds.join(), coordinatorId, types.join(), statuses.join()]
+  const queryKey = ['bookings', from.toISOString(), to.toISOString(), buildingId, roomIds.join(), coordinatorId, types.join(), statuses.join(), source]
   const adminQuery = useQuery({
     enabled: !portal,
     queryKey,
@@ -100,6 +102,7 @@ export function CalendarPage({ mode = 'admin' }: { mode?: 'admin' | 'portal' }) 
         coordinatorId: coordinatorId || undefined,
         types,
         statuses,
+        source: source || undefined,
       }),
     placeholderData: (prev) => prev,
   })
@@ -139,6 +142,17 @@ export function CalendarPage({ mode = 'admin' }: { mode?: 'admin' | 'portal' }) 
     for (const b of blocksQuery.data ?? []) if (!b.mine && b.coordinatorName) m.set(`name:${b.coordinatorName}`, b.coordinatorName)
     return [...m.entries()].map(([id, fullName]) => ({ id, fullName }))
   }, [portal, staffCoordinators, blocksQuery.data, me])
+
+  // "+ הזמנה חדשה" from anywhere in the admin: ?new=1 opens an empty booking.
+  useEffect(() => {
+    if (portal || !canEdit || params.get('new') !== '1') return
+    const start = new Date()
+    start.setMinutes(0, 0, 0)
+    start.setHours(start.getHours() + 1)
+    setDialog({ booking: null, draft: { start, end: new Date(start.getTime() + 3600_000) } })
+    update({ new: null })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params])
 
   // Open booking from deep link (?booking=id)
   useEffect(() => {
@@ -218,7 +232,7 @@ export function CalendarPage({ mode = 'admin' }: { mode?: 'admin' | 'portal' }) 
   }, [view, from, visibleRooms, coordinators, coordinatorId])
 
   const busyDays = useMemo(() => new Set(byDay(bookings).keys()), [bookings])
-  const filtersActive = roomIds.length > 0 || !!coordinatorId || types.length > 0 || params.has('statuses') || lens !== 'admin'
+  const filtersActive = roomIds.length > 0 || !!coordinatorId || types.length > 0 || params.has('statuses') || lens !== 'admin' || !!source
 
   const title = (() => {
     switch (view) {
@@ -228,7 +242,7 @@ export function CalendarPage({ mode = 'admin' }: { mode?: 'admin' | 'portal' }) 
         return fmt(anchor, 'MMMM yyyy')
       case 'week': {
         const end = addDays(from, 6)
-        return from.getMonth() === end.getMonth() ? `${fmt(from, 'd')}–${fmt(end, 'd בMMMM yyyy')}` : `${fmt(from, 'd בMMM')} – ${fmt(end, 'd בMMM yyyy')}`
+        return from.getMonth() === end.getMonth() ? `${ltr(`${fmt(from, 'd')}–${fmt(end, 'd')}`)} ${fmt(end, 'בMMMM yyyy')}` : `${fmt(from, 'd בMMM')} – ${fmt(end, 'd בMMM yyyy')}`
       }
       default:
         return fmt(anchor, 'EEEE, d בMMMM yyyy')
@@ -303,7 +317,7 @@ export function CalendarPage({ mode = 'admin' }: { mode?: 'admin' | 'portal' }) 
             {filtersActive && <span className="ms-1 h-2 w-2 rounded-full bg-brand" />}
           </Button>
           {filtersActive && (
-            <button className="flex items-center gap-1 text-sm text-brand" onClick={() => update({ rooms: null, coordinator: null, types: null, statuses: null, lens: null })}>
+            <button className="flex items-center gap-1 text-sm text-brand" onClick={() => update({ rooms: null, coordinator: null, types: null, statuses: null, lens: null, source: null })}>
               <FilterX className="h-4 w-4" /> ניקוי
             </button>
           )}
@@ -311,7 +325,7 @@ export function CalendarPage({ mode = 'admin' }: { mode?: 'admin' | 'portal' }) 
       )}
 
       {/* Filters (mirrors the mockup) */}
-      <div className={clsx('card grid grid-cols-2 gap-3 p-4 md:grid-cols-3', portal ? 'xl:grid-cols-4' : 'xl:grid-cols-6', phone && !showFilters && 'hidden')}>
+      <div className={clsx('card grid grid-cols-2 gap-3 p-4 md:grid-cols-3', portal ? 'xl:grid-cols-4' : 'xl:grid-cols-7', phone && !showFilters && 'hidden')}>
         <label className="min-w-0">
           <span className="label">מבנה</span>
           <Select value={buildingId} onChange={(e) => update({ building: e.target.value, rooms: null })}>
@@ -357,6 +371,16 @@ export function CalendarPage({ mode = 'admin' }: { mode?: 'admin' | 'portal' }) 
         )}
         {!portal && (
         <label className="min-w-0">
+          <span className="label">מקור ההזמנה</span>
+          <Select value={source} onChange={(e) => update({ source: e.target.value })}>
+            <option value="">כל ההזמנות</option>
+            <option value="direct">נוצרו ישירות ע״י ההנהלה</option>
+            <option value="request">אושרו מבקשות (רכזים / לקוחות)</option>
+          </Select>
+        </label>
+        )}
+        {!portal && (
+        <label className="min-w-0">
           <span className="label">צפייה כ (הדגמה)</span>
           <Select value={lens} onChange={(e) => update({ lens: e.target.value === 'admin' ? null : e.target.value })}>
             <option value="admin">מנהל מערכת</option>
@@ -387,7 +411,7 @@ export function CalendarPage({ mode = 'admin' }: { mode?: 'admin' | 'portal' }) 
           <span className="hatch h-3 w-3 rounded border border-line" /> סגור / לא זמין
         </span>
         {filtersActive && (
-          <button className="flex items-center gap-1 text-brand hover:underline" onClick={() => update({ rooms: null, coordinator: null, types: null, statuses: null, lens: null })}>
+          <button className="flex items-center gap-1 text-brand hover:underline" onClick={() => update({ rooms: null, coordinator: null, types: null, statuses: null, lens: null, source: null })}>
             <FilterX className="h-3.5 w-3.5" /> ניקוי סינון
           </button>
         )}

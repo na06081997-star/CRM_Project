@@ -1,6 +1,6 @@
 import clsx from 'clsx'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { CalendarDays, CreditCard, HelpCircle, LayoutDashboard, LayoutGrid, ListChecks, LogOut, Menu, Moon, Plus, Search, Sparkles, Sun, X } from 'lucide-react'
+import { CalendarDays, CreditCard, HelpCircle, LayoutDashboard, LayoutGrid, ListChecks, LogOut, Menu, Moon, Plus, Search, Sparkles, Sun, Wrench, X } from 'lucide-react'
 import { useEffect, type ReactNode } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { NotificationsBell } from '@/components/layout/AdminLayout'
@@ -56,6 +56,7 @@ export function PortalLayout() {
       qc.invalidateQueries({ queryKey: ['bookings'] })
     }
     if (ev.type === 'payment.changed') qc.invalidateQueries({ queryKey: ['balances'] })
+    if (ev.type === 'task.changed') qc.invalidateQueries({ queryKey: ['tasks'] })
     if (ev.type === 'notification') {
       qc.invalidateQueries({ queryKey: ['notifications'] })
       const d = ev.data as { subject?: string }
@@ -70,7 +71,8 @@ export function PortalLayout() {
     { to: '/portal/search', label: 'חיפוש חלל', icon: <Search /> },
     { to: '/portal/requests', label: 'הבקשות שלי', icon: <ListChecks />, badge: pending },
     { to: '/portal/bookings', label: coordinator ? 'הפעילויות שלי' : 'ההזמנות שלי', icon: <Sparkles /> },
-    { to: '/portal/payments', label: 'תשלומים', icon: <CreditCard />, badge: balances.length },
+    { to: '/portal/issues', label: 'פניות לצוות התפעול', icon: <Wrench />, show: can('issues:report') },
+    { to: '/portal/payments', label: 'תשלומים', icon: <CreditCard />, badge: balances.length, show: !coordinator || balances.length > 0 },
     { to: '/portal/help', label: 'עזרה ויצירת קשר', icon: <HelpCircle /> },
   ]
 
@@ -187,6 +189,7 @@ export function PortalLayout() {
           ...(can('availability:view') ? [{ to: '/portal/calendar', label: 'יומן', icon: <CalendarDays /> }] : [{ to: '/portal/search', label: 'חיפוש', icon: <Search /> }]),
           { to: '/portal/new', label: 'בקשה חדשה', icon: <Plus />, primary: true },
           { to: '/portal/requests', label: 'הבקשות שלי', icon: <ListChecks />, badge: pending },
+          ...(can('issues:report') ? [{ to: '/portal/issues', label: 'תקלות', icon: <Wrench /> }] : []),
         ]}
         onMore={() => setSidebar(true)}
       />

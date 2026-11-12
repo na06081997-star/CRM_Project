@@ -10,10 +10,18 @@ export const dateShort = (v: string | Date) => fmt(v, 'dd.MM')
 export const dateLong = (v: string | Date) => fmt(v, 'EEEE, d בMMMM yyyy')
 export const dateTime = (v: string | Date) => fmt(v, 'dd.MM.yy HH:mm')
 
+/**
+ * Wraps text in a left-to-right isolate. In Hebrew (RTL) text a range such as
+ * "18:00–20:00" is otherwise laid out right to left and reads "20:00–18:00".
+ */
+const LRI = String.fromCharCode(0x2066) // left-to-right isolate
+const PDI = String.fromCharCode(0x2069) // pop directional isolate
+export const ltr = (s: string) => LRI + s + PDI
+
 export function timeRange(start: string | Date, end: string | Date) {
   const s = toDate(start)
   const e = toDate(end)
-  return isSameDay(s, e) ? `${time(s)}–${time(e)}` : `${fmt(s, 'dd.MM HH:mm')} – ${fmt(e, 'dd.MM HH:mm')}`
+  return ltr(isSameDay(s, e) ? `${time(s)}–${time(e)}` : `${fmt(s, 'dd.MM HH:mm')} – ${fmt(e, 'dd.MM HH:mm')}`)
 }
 
 export const relative = (v: string | Date) => formatDistanceToNowStrict(toDate(v), { locale: he, addSuffix: true })

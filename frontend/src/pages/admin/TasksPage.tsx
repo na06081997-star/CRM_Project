@@ -1,12 +1,13 @@
 import clsx from 'clsx'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { addDays, startOfDay } from 'date-fns'
-import { BellRing, CalendarClock, CheckCircle2, Circle, Clock, Plus, Repeat, Trash2 } from 'lucide-react'
+import { BellRing, CalendarClock, Camera, CheckCircle2, Circle, Clock, MessageSquareWarning, Phone, Plus, Repeat, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { PhotoGallery } from '@/components/Photos'
 import { toast } from '@/components/toast'
 import { Avatar, Badge, Button, Card, Empty, Field, IconButton, Input, Modal, PageHeader, PageLoader, Select, Tabs, Textarea, Toggle } from '@/components/ui'
 import { api, errorMessage } from '@/lib/api'
-import { dateShort, fmt, fromLocalInput, time, toLocalInput } from '@/lib/format'
+import { dateShort, fmt, fromLocalInput, ltr, relative, time, toLocalInput } from '@/lib/format'
 import { staffKindLabel, taskKindLabel, taskStatusLabel, weekdayShort } from '@/lib/labels'
 import { useLookups, useUsers } from '@/lib/queries'
 import type { Task, TaskSchedule, TaskStatus } from '@/lib/types'
@@ -62,6 +63,7 @@ function TaskBoard() {
 
   return (
     <>
+      <UnassignedTickets onOpen={setEdit} />
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <Tabs
           value={range}
@@ -109,6 +111,11 @@ function TaskBoard() {
                             {t.scheduleId && <Repeat className="h-3 w-3" />}
                             {t.reminderSentAt && <BellRing className="h-3 w-3 text-brand" />}
                           </p>
+                          {t.reporterName && (
+                            <p className="mt-1 flex items-center gap-1 text-xs text-amber-700 dark:text-amber-300">
+                              <MessageSquareWarning className="h-3 w-3" /> פנייה מ{t.reporterName}
+                            </p>
+                          )}
                           {t.completionNote && <p className="mt-1 rounded-lg bg-subtle px-2 py-1 text-xs">“{t.completionNote}”</p>}
                         </button>
                         {t.assigneeName && <Avatar name={t.assigneeName} size={26} />}
@@ -228,6 +235,22 @@ function TaskDialog({ task, onClose }: { task: Partial<Task> | null; onClose: ()
         <Field label="תיאור" className="sm:col-span-2">
           <Textarea value={f.description ?? ''} onChange={(e) => setF({ ...f, description: e.target.value })} />
         </Field>
+        {task?.id && task.reporterName && (
+          <div className="rounded-xl bg-amber-50 px-3 py-2 text-sm dark:bg-amber-950/20 sm:col-span-2">
+            פנייה מ<b>{task.reporterName}</b>
+            {task.reporterPhone && (
+              <a href={`tel:${task.reporterPhone}`} className="ms-2 inline-flex items-center gap-1 font-medium text-brand">
+                <Phone className="h-3.5 w-3.5" /> {ltr(task.reporterPhone)}
+              </a>
+            )}
+          </div>
+        )}
+        {task?.id && (
+          <div className="space-y-3 sm:col-span-2">
+            <PhotoGallery entity="task" entityId={task.id} title="תמונות מהפנייה" />
+            <PhotoGallery entity="task_done" entityId={task.id} title="תמונות לאחר הביצוע" />
+          </div>
+        )}
       </div>
     </Modal>
   )
@@ -378,5 +401,72 @@ function Schedules() {
         )}
       </Modal>
     </Card>
+  )
+}
+
+/** Coordinator tickets nobody handles yet: assign each to a cleaner / technician in one tap. */
+function UnassignedTickets({ onOpen }: { onOpen: (t: Task) => void }) {
+  const qc = useQueryClient()
+  const staff = useUsers('staff').data ?? []
+  const { data = [] } = useQuery({ queryKey: ['tasks', 'unassigned'], queryFn: () => api.get<Task[]>('/tasks', { unassigned: true, statuses: ['open'] }) })
+  const assign = useMutation({
+    mutationFn: ({ id, assigneeId }: { id: string; assigneeId: string }) => api.post<Task>(`/tasks/${id}/assign`, { assigneeId }),
+    onSuccess: (t) => {
+      toast.success(`שובץ ל${t.assigneeName} – נשלחה התראה`)
+      qc.invalidateQueries({ queryKey: ['tasks'] })
+    },
+    onError: (e) => toast.error(errorMessage(e)),
+  })
+  if (data.length === 0) return null
+  // Suggest the right trade first: cleaners for cleaning, technicians / maintenance for the rest.
+  const ordered = (kind: string) => {
+    const fits = (k: string | null) => (kind === 'cleaning' ? k === 'cleaner' : k === 'technician' || k === 'maintenance')
+    return [...staff].sort((a, b) => Number(fits(b.staffKind)) - Number(fits(a.staffKind)))
+  }
+  return (
+    <section className="mb-5 rounded-2xl border border-amber-300/60 bg-amber-50/60 p-3 dark:border-amber-800/60 dark:bg-amber-950/20 sm:p-4">
+      <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold">
+        <MessageSquareWarning className="h-4 w-4 text-amber-600" /> פניות ממתינות לשיבוץ
+        <Badge tone="amber">{data.length}</Badge>
+      </h2>
+      <div className="grid gap-2 lg:grid-cols-2">
+        {data.map((t) => (
+          <div key={t.id} className="card p-3">
+            <button className="block w-full text-start" onClick={() => onOpen(t)}>
+              <p className="font-medium">{t.title}</p>
+              <p className="mt-0.5 text-xs text-muted">
+                {taskKindLabel[t.kind] ?? t.kind}
+                {t.roomName && ` · ${t.roomName}`} · {t.reporterName ?? 'צוות'} · {relative(t.createdAt)}
+              </p>
+              {t.description && <p className="mt-1 line-clamp-2 text-sm">{t.description}</p>}
+            </button>
+            <div className="mt-2 flex items-center gap-2">
+              {t.reporterPhone && (
+                <a href={`tel:${t.reporterPhone}`} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-line text-brand" aria-label="התקשרות לפונה">
+                  <Phone className="h-4 w-4" />
+                </a>
+              )}
+              <button className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-line text-muted" onClick={() => onOpen(t)} aria-label="תמונות ופרטים">
+                <Camera className="h-4 w-4" />
+              </button>
+              <Select
+                className="flex-1"
+                value=""
+                disabled={assign.isPending}
+                onChange={(e) => e.target.value && assign.mutate({ id: t.id, assigneeId: e.target.value })}
+                aria-label="שיבוץ לעובד/ת"
+              >
+                <option value="">שיבוץ לעובד/ת…</option>
+                {ordered(t.kind).map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.fullName} {u.staffKind ? `(${staffKindLabel[u.staffKind]})` : ''}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
   )
 }

@@ -74,8 +74,13 @@ export function IconButton({ label, className, children, ...rest }: ButtonHTMLAt
 
 // ── Form controls ────────────────────────────────────────────
 
-export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(function Input({ className, ...rest }, ref) {
-  return <input ref={ref} className={clsx('input', className)} {...rest} />
+// Times and dates are written left to right even in Hebrew: in an RTL input
+// "14:30" would otherwise show as "30:14".
+const LTR_TYPES = new Set(['time', 'date', 'datetime-local', 'month', 'week', 'tel', 'email', 'number'])
+
+export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(function Input({ className, dir, type, ...rest }, ref) {
+  const ltrInput = !!type && LTR_TYPES.has(type)
+  return <input ref={ref} type={type} dir={dir ?? (ltrInput ? 'ltr' : undefined)} className={clsx('input', ltrInput && 'text-end', className)} {...rest} />
 })
 
 export const Textarea = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<HTMLTextAreaElement>>(function Textarea(

@@ -8,7 +8,7 @@ import { toast } from '@/components/toast'
 import { Badge, Button, PageLoader } from '@/components/ui'
 import { api } from '@/lib/api'
 import { useUser } from '@/lib/auth'
-import { dateShort, fmt, minutesLabel, time } from '@/lib/format'
+import { dateShort, fmt, minutesLabel, ltr, timeRange } from '@/lib/format'
 import { weekdayShort } from '@/lib/labels'
 import { useLookups } from '@/lib/queries'
 import type { Block, Booking } from '@/lib/types'
@@ -94,7 +94,7 @@ export function RoomPage() {
             שבוע קודם
           </Button>
           <span className="rounded-xl border border-line bg-surface px-3 py-1.5 text-sm font-semibold">
-            {fmt(weekStart, 'd')}–{fmt(addDays(weekStart, 6), 'd בMMMM')}
+            {ltr(`${fmt(weekStart, 'd')}–${fmt(addDays(weekStart, 6), 'd')}`)} {fmt(addDays(weekStart, 6), 'בMMMM')}
           </span>
           <Button variant="secondary" size="sm" onClick={() => setWeekStart(addDays(weekStart, 7))}>
             שבוע הבא <ChevronLeft className="h-4 w-4" />
@@ -138,7 +138,7 @@ export function RoomPage() {
                   if (busy(r.start, r.end)) return toast.error('לא ניתן לבחור רצף שחוצה אירוע קיים או חסימה')
                   setSel({ start: r.start, end: r.end })
                 }}
-                onOpen={(b) => (b.id === 'selection' ? setSel(null) : toast.info(`${b.title} · ${time(b.startsAt)}–${time(b.endsAt)}`))}
+                onOpen={(b) => (b.id === 'selection' ? setSel(null) : toast.info(`${b.title} · ${timeRange(b.startsAt, b.endsAt)}`))}
                 onMove={() => undefined}
               />
             )}
@@ -153,7 +153,7 @@ export function RoomPage() {
                 <dl className="mt-3 space-y-2 text-sm">
                   <Row k="חלל" v={room.name} />
                   <Row k="תאריך" v={dateShort(sel.start) + '.' + sel.start.getFullYear()} />
-                  <Row k="שעות" v={`${time(sel.start)}–${time(sel.end)}`} />
+                  <Row k="שעות" v={timeRange(sel.start, sel.end)} />
                   <Row k="משך" v={minutesLabel(minutes)} />
                 </dl>
                 <Badge tone="green" className="mt-3">

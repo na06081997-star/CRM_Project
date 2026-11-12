@@ -1,19 +1,28 @@
 import clsx from 'clsx'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { addMinutes, format } from 'date-fns'
-import { AlertTriangle, CheckCircle2, CreditCard, Repeat, Trash2, XCircle } from 'lucide-react'
+import { CheckCircle2, CreditCard, EyeOff, Repeat, Trash2, XCircle } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Attachments } from '@/components/Attachments'
 import { CustomerPicker } from '@/components/CustomerPicker'
+import { NeedsChecklist } from '@/components/NeedsChecklist'
+import { SlotAlternatives } from '@/components/SlotAlternatives'
 import { PaymentDialog } from '@/components/PaymentDialog'
 import { toast } from '@/components/toast'
 import { Badge, Button, Confirm, Field, Input, Modal, Select, Textarea } from '@/components/ui'
 import { api, ApiError, errorMessage } from '@/lib/api'
 import { useCan } from '@/lib/auth'
-import { dateTime, money, timeRange } from '@/lib/format'
+import { dateTime, money } from '@/lib/format'
 import { bookingStatusLabel, bookingTypeLabel, typeStyles } from '@/lib/labels'
 import { useActivities, useLookups, useUsers } from '@/lib/queries'
-import type { Booking, BookingStatus, BookingType, Conflict, PriceQuote } from '@/lib/types'
+import type { Booking, BookingStatus, BookingType, Conflict, PriceQuote, RoomOption } from '@/lib/types'
+
+interface Check {
+  conflicts: Conflict[]
+  quote: PriceQuote
+  sameRoom?: { start: string; end: string }[]
+  otherRooms?: RoomOption[]
+}
 
 export interface Draft {
   start: Date
@@ -35,6 +44,8 @@ interface Form {
   activityId: string
   attendees: number
   equipment: string[]
+  chairs: number
+  tables: number
   price: string // '' = automatic quote
   notes: string
   internalNotes: string
@@ -60,6 +71,8 @@ function toForm(b: Booking | null, d: Draft | null, defaultRoom: string): Form {
     activityId: b?.activityId ?? '',
     attendees: b?.attendees ?? 0,
     equipment: b?.equipment ?? [],
+    chairs: b?.chairsCount ?? 0,
+    tables: b?.tablesCount ?? 0,
     price: b ? String(b.price) : '',
     notes: b?.notes ?? '',
     internalNotes: b?.internalNotes ?? '',
@@ -83,7 +96,7 @@ export function BookingDialog({ open, onClose, booking, draft }: { open: boolean
   const activities = useActivities(canEdit).data ?? []
   const [f, setF] = useState<Form>(() => toForm(booking, draft, rooms[0]?.id ?? ''))
   const [errors, setErrors] = useState<Record<string, string>>({})
-  const [check, setCheck] = useState<{ conflicts: Conflict[]; quote: PriceQuote } | null>(null)
+  const [check, setCheck] = useState<Check | null>(null)
   const [confirm, setConfirm] = useState<null | 'cancel' | 'cancelSeries' | 'delete'>(null)
   const [paying, setPaying] = useState(false)
 
@@ -106,7 +119,7 @@ export function BookingDialog({ open, onClose, booking, draft }: { open: boolean
     if (!(end > start)) return
     const t = setTimeout(() => {
       api
-        .post<{ conflicts: Conflict[]; quote: PriceQuote }>('/bookings/check', {
+        .post<Check>('/bookings/check', {
           roomId: f.roomId,
           startsAt: start.toISOString(),
           endsAt: end.toISOString(),
@@ -141,6 +154,8 @@ export function BookingDialog({ open, onClose, booking, draft }: { open: boolean
         activityId: f.activityId || null,
         attendees: Number(f.attendees) || 0,
         equipment: f.equipment,
+        chairsCount: Number(f.chairs) || 0,
+        tablesCount: Number(f.tables) || 0,
         price: f.price === '' ? null : Number(f.price),
         notes: f.notes,
         internalNotes: f.internalNotes,
@@ -303,7 +318,7 @@ export function BookingDialog({ open, onClose, booking, draft }: { open: boolean
               <Field label="רכז/ת אחראי/ת">
                 <Select value={f.coordinatorId} onChange={(e) => set('coordinatorId', e.target.value)}>
                   <option value="">ללא</option>
-                  {coordinators.map((c) => (
+                  {coordinators.filter((c) => c.isActive || c.id === f.coordinatorId).map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.fullName}
                     </option>
@@ -343,36 +358,28 @@ export function BookingDialog({ open, onClose, booking, draft }: { open: boolean
               </Field>
             </div>
 
-            {room && room.equipment.length > 0 && (
-              <div>
-                <span className="label">ציוד ושירותים</span>
-                <div className="flex flex-wrap gap-1.5">
-                  {room.equipment.map((code) => {
-                    const it = equipment.find((e) => e.code === code)
-                    const on = f.equipment.includes(code)
-                    return (
-                      <button
-                        type="button"
-                        key={code}
-                        onClick={() => set('equipment', on ? f.equipment.filter((x) => x !== code) : [...f.equipment, code])}
-                        className={clsx('rounded-xl border px-3 py-1.5 text-xs transition', on ? 'border-brand bg-brand-soft text-brand-strong' : 'border-line hover:bg-subtle')}
-                      >
-                        {it?.label ?? code}
-                        {it && it.flatPrice > 0 && <span className="ms-1 text-muted">+{money(it.flatPrice)}</span>}
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
+            <div>
+              <span className="label">דרישות לאירוע</span>
+              <NeedsChecklist
+                value={{ chairs: f.chairs, tables: f.tables, equipment: f.equipment }}
+                onChange={(v) => setF((p) => ({ ...p, chairs: v.chairs, tables: v.tables, equipment: v.equipment }))}
+                roomEquipment={room?.equipment}
+                catalog={equipment}
+                disabled={readOnly}
+              />
+            </div>
 
             <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="הערות (גלויות ללקוח)">
+              <Field label="הערות למזמין" hint="יוצגו ללקוח / לרכז באזור האישי שלו (לדוגמה: הוראות הגעה, מפתח)">
                 <Textarea value={f.notes} onChange={(e) => set('notes', e.target.value)} rows={2} />
               </Field>
-              <Field label="הערות פנימיות">
-                <Textarea value={f.internalNotes} onChange={(e) => set('internalNotes', e.target.value)} rows={2} />
-              </Field>
+              <label className="block">
+                <span className="label flex items-center gap-1">
+                  <EyeOff className="h-3.5 w-3.5" /> הערות פנימיות – לצוות בלבד
+                </span>
+                <Textarea value={f.internalNotes} onChange={(e) => set('internalNotes', e.target.value)} rows={2} className="border-dashed bg-amber-50/50 dark:bg-amber-950/10" />
+                <span className="mt-1 block text-xs text-muted">לא מוצגות למזמין, לרכז או בשילוט</span>
+              </label>
             </div>
 
             {booking && <Attachments entity="booking" entityId={booking.id} canDelete={canEdit} />}
@@ -380,30 +387,23 @@ export function BookingDialog({ open, onClose, booking, draft }: { open: boolean
 
           {/* Side panel: availability, price, payments */}
           <aside className="grid content-start gap-3">
-            <div className={clsx('rounded-2xl border p-4', conflicts.length ? 'border-danger/40 bg-red-50 dark:bg-red-950/30' : 'border-ok/30 bg-emerald-50 dark:bg-emerald-950/20')}>
-              {conflicts.length ? (
-                <>
-                  <p className="flex items-center gap-1.5 text-sm font-semibold text-danger">
-                    <AlertTriangle className="h-4 w-4" /> התנגשות במועד
-                  </p>
-                  <ul className="mt-2 space-y-1.5 text-xs">
-                    {conflicts.map((c) => (
-                      <li key={c.bookingId} className="rounded-lg bg-surface/70 px-2 py-1.5">
-                        <p className="font-medium">{c.title}</p>
-                        <p className="text-muted">
-                          {timeRange(c.startsAt, c.endsAt)} · {c.reason === 'buffer' ? 'זמן חציצה' : c.reason === 'maintenance' ? 'חסימת תחזוקה' : 'חפיפה'}
-                        </p>
-                      </li>
-                    ))}
-                  </ul>
-                </>
-              ) : (
+            {conflicts.length ? (
+              <SlotAlternatives
+                conflicts={conflicts}
+                bufferMinutes={room?.bufferMinutes}
+                sameRoom={check?.sameRoom}
+                otherRooms={check?.otherRooms}
+                onPickTime={(st, en) => setF((p) => ({ ...p, date: format(st, 'yyyy-MM-dd'), startTime: format(st, 'HH:mm'), endTime: format(en, 'HH:mm') }))}
+                onPickRoom={(id) => set('roomId', id)}
+              />
+            ) : (
+              <div className="rounded-2xl border border-ok/30 bg-emerald-50 p-4 dark:bg-emerald-950/20">
                 <p className="flex items-center gap-1.5 text-sm font-semibold text-ok">
                   <CheckCircle2 className="h-4 w-4" /> החדר פנוי במועד זה
                 </p>
-              )}
-              {room && <p className="mt-2 text-[11px] text-muted">זמן חציצה אחרי כל הזמנה: {room.bufferMinutes} דק׳</p>}
-            </div>
+                {room && <p className="mt-2 text-[11px] text-muted">כולל {room.bufferMinutes} דק׳ ניקיון והתארגנות אחרי ההזמנה</p>}
+              </div>
+            )}
 
             <div className="rounded-2xl border border-line p-4">
               <p className="text-sm font-semibold">תמחור</p>

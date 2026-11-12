@@ -31,6 +31,8 @@ type RequestInput struct {
 	ActivityID  *uuid.UUID `json:"activityId"`
 	TablesCount int        `json:"tablesCount"`
 	ChairsCount int        `json:"chairsCount"`
+	// RepeatUntil (YYYY-MM-DD): a weekly activity (חוג) repeating until that date.
+	RepeatUntil string `json:"repeatUntil"`
 }
 
 func (s *Service) ListRequests(ctx context.Context, actor Actor, f store.RequestFilter) ([]domain.BookingRequest, error) {
@@ -62,6 +64,10 @@ func (s *Service) SubmitRequest(ctx context.Context, actor Actor, in RequestInpu
 	switch in.Route {
 	case "", "rental":
 		in.Route = "rental"
+		// Coordinators run activities; paid rentals go through the office.
+		if !actor.Can(domain.ActRequestRental) {
+			v.Add("route", "רכז אינו מגיש בקשות לשכירות בתשלום – יש לבחור פעילות")
+		}
 	case "activity":
 		if !actor.Can(domain.ActRequestActivity) {
 			return domain.BookingRequest{}, domain.ErrForbidden
@@ -73,9 +79,27 @@ func (s *Service) SubmitRequest(ctx context.Context, actor Actor, in RequestInpu
 			} else if in.Title == "" {
 				in.Title = act.Name
 			}
+		} else if in.Title != "" {
+			in.ActivityID = s.myActivityNamed(ctx, actor.User.ID, in.Title)
 		}
 	default:
 		v.Add("route", "מסלול לא תקין")
+	}
+	var repeatUntil *time.Time
+	if in.RepeatUntil != "" {
+		if in.Route != "activity" {
+			v.Add("repeatUntil", "חזרה שבועית זמינה לפעילויות בלבד")
+		} else if until, err := s.parseUntil(in.RepeatUntil, in.StartsAt); err != nil {
+			var ve *domain.ValidationError
+			if errors.As(err, &ve) {
+				for k, m := range ve.Fields {
+					v.Add(k, m)
+				}
+			}
+		} else {
+			d := time.Date(until.Year(), until.Month(), until.Day(), 0, 0, 0, 0, time.UTC)
+			repeatUntil = &d
+		}
 	}
 	if in.Title == "" {
 		v.Add("title", "יש להזין שם לאירוע")
@@ -144,6 +168,7 @@ func (s *Service) SubmitRequest(ctx context.Context, actor Actor, in RequestInpu
 		StartsAt: in.StartsAt, EndsAt: in.EndsAt, Attendees: in.Attendees, Equipment: in.Equipment,
 		Notes: in.Notes, QuotedPrice: quote.Total, Route: in.Route, ActivityID: in.ActivityID,
 		TablesCount: in.TablesCount, ChairsCount: in.ChairsCount, ContactName: in.Name, ContactPhone: in.Phone,
+		RepeatUntil: repeatUntil,
 	})
 	if err != nil {
 		return domain.BookingRequest{}, err
@@ -151,6 +176,22 @@ func (s *Service) SubmitRequest(ctx context.Context, actor Actor, in RequestInpu
 	s.audit(ctx, actor, "request", req.ID, "submit", map[string]any{"title": req.Title, "room": req.RoomName})
 	s.emit(ctx, EvRequestChanged, map[string]any{"action": "created", "id": req.ID}, realtime.TopicStaff)
 	return req, nil
+}
+
+// myActivityNamed links a free-text activity name to the coordinator's own
+// activity of that name, if there is one.
+func (s *Service) myActivityNamed(ctx context.Context, coordinator uuid.UUID, name string) *uuid.UUID {
+	acts, err := s.store.ListActivities(ctx)
+	if err != nil {
+		return nil
+	}
+	for _, a := range acts {
+		if a.CoordinatorID != nil && *a.CoordinatorID == coordinator && strings.EqualFold(strings.TrimSpace(a.Name), name) {
+			id := a.ID
+			return &id
+		}
+	}
+	return nil
 }
 
 // customerForUser finds or creates the customer record linked to a portal user.
@@ -198,6 +239,8 @@ func (s *Service) ReviewRequest(ctx context.Context, actor Actor, id uuid.UUID, 
 	}
 
 	var booking *domain.Booking
+	var series []domain.Booking
+	var skipped []time.Time
 	err := s.store.InTx(ctx, func(tx *store.Store) error {
 		req, err := tx.RequestByIDForUpdate(ctx, id)
 		if err != nil {
@@ -233,22 +276,44 @@ func (s *Service) ReviewRequest(ctx context.Context, actor Actor, id uuid.UUID, 
 				// The requester is the coordinator running the activity.
 				b.Type, b.CoordinatorID, b.ActivityID = domain.BookingActivity, &req.UserID, req.ActivityID
 			}
-			existing, err := tx.BlockingBookings(ctx, b.RoomID, b.StartsAt.Add(-4*time.Hour), b.BlockedUntil())
-			if err != nil {
-				return err
+			// A weekly request becomes a series; occurrences taken in the
+			// meantime are skipped (and reported), the first one must be free.
+			starts := []time.Time{req.StartsAt}
+			if req.RepeatUntil != nil {
+				u := *req.RepeatUntil
+				until := time.Date(u.Year(), u.Month(), u.Day(), 23, 59, 59, 0, s.loc)
+				starts = domain.RecurrenceDates(req.StartsAt, until, 0, MaxOccurrences)
+				if len(starts) > 1 {
+					sid := uuid.New()
+					b.SeriesID = &sid
+				}
 			}
-			if c := domain.FindConflicts(b, existing); len(c) > 0 {
-				return &domain.ConflictError{Conflicts: c}
+			length := req.EndsAt.Sub(req.StartsAt)
+			for i, st := range starts {
+				occ := b
+				occ.StartsAt, occ.EndsAt = st, st.Add(length)
+				existing, err := tx.BlockingBookings(ctx, occ.RoomID, occ.StartsAt.Add(-4*time.Hour), occ.BlockedUntil())
+				if err != nil {
+					return err
+				}
+				if c := domain.FindConflicts(occ, existing); len(c) > 0 {
+					if i == 0 {
+						return &domain.ConflictError{Conflicts: c}
+					}
+					skipped = append(skipped, st)
+					continue
+				}
+				created, err := tx.CreateBooking(ctx, occ)
+				if errors.Is(err, store.ErrOverlap) {
+					return &domain.ConflictError{}
+				}
+				if err != nil {
+					return err
+				}
+				series = append(series, created)
 			}
-			created, err := tx.CreateBooking(ctx, b)
-			if errors.Is(err, store.ErrOverlap) {
-				return &domain.ConflictError{}
-			}
-			if err != nil {
-				return err
-			}
-			booking = &created
-			in.Status, in.FinalPrice, in.BookingID, in.RejectionReason = domain.RequestApproved, &price, &created.ID, ""
+			booking = &series[0]
+			in.Status, in.FinalPrice, in.BookingID, in.RejectionReason = domain.RequestApproved, &price, &booking.ID, ""
 		}
 		return tx.ReviewRequest(ctx, id, in)
 	})
@@ -264,6 +329,12 @@ func (s *Service) ReviewRequest(ctx context.Context, actor Actor, id uuid.UUID, 
 	if requester, err := s.store.UserByID(ctx, req.UserID); err == nil {
 		if d.Approve {
 			msg := fmt.Sprintf("שלום %s,\nבקשתך \"%s\" ב%s בתאריך %s אושרה.", requester.FullName, req.Title, req.RoomName, when)
+			if len(series) > 1 {
+				msg += fmt.Sprintf("\nנקבעו %d מפגשים שבועיים.", len(series))
+			}
+			if len(skipped) > 0 {
+				msg += "\nתאריכים תפוסים שלא נכללו: " + formatDates(skipped, s.loc)
+			}
 			if req.FinalPrice != nil && *req.FinalPrice > 0 {
 				msg += fmt.Sprintf("\nסכום לתשלום: ₪%.2f", *req.FinalPrice)
 			}
@@ -280,9 +351,18 @@ func (s *Service) ReviewRequest(ctx context.Context, actor Actor, id uuid.UUID, 
 	s.audit(ctx, actor, "request", id, action, map[string]any{"title": req.Title, "reason": req.RejectionReason, "price": req.FinalPrice})
 	s.emit(ctx, EvRequestChanged, map[string]any{"action": action, "id": id}, realtime.TopicStaff, realtime.UserTopic(req.UserID.String()))
 	if booking != nil {
-		s.bookingChanged(ctx, "created", *booking)
+		s.bookingChanged(ctx, "created", series...)
 	}
+	req.ApprovedCount, req.SkippedDates = len(series), skipped
 	return req, nil
+}
+
+func formatDates(ts []time.Time, loc *time.Location) string {
+	parts := make([]string, len(ts))
+	for i, t := range ts {
+		parts[i] = t.In(loc).Format("02/01")
+	}
+	return strings.Join(parts, ", ")
 }
 
 func (s *Service) CancelOwnRequest(ctx context.Context, actor Actor, id uuid.UUID) error {

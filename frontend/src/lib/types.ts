@@ -131,6 +131,10 @@ export interface BookingRequest {
   activityId: ID | null
   tablesCount: number
   chairsCount: number
+  /** Weekly activity (חוג) repeating until this date. */
+  repeatUntil: string | null
+  approvedCount?: number
+  skippedDates?: string[]
   title: string
   eventKind: string
   startsAt: string
@@ -199,9 +203,14 @@ export interface Task {
   completedAt: string | null
   completionNote: string
   reminderSentAt: string | null
+  /** Set on tickets opened by a coordinator. */
+  reportedBy: ID | null
   createdAt: string
   roomName: string | null
   assigneeName: string | null
+  reporterName: string | null
+  reporterPhone: string | null
+  bookingTitle: string | null
 }
 
 export interface TaskSchedule {
@@ -222,6 +231,58 @@ export interface Conflict {
   startsAt: string
   endsAt: string
   reason: 'overlap' | 'buffer' | 'maintenance'
+}
+
+export interface Occurrence {
+  startsAt: string
+  endsAt: string
+  free: boolean
+}
+
+export interface RoomOption {
+  roomId: ID
+  roomName: string
+  buildingName: string
+  capacity: number
+}
+
+/** Answer of POST /availability/check: is the slot free, and what else is. */
+export interface SlotCheck {
+  free: boolean
+  conflicts: Conflict[]
+  outsideHours: boolean
+  hours: string
+  inPast: boolean
+  bufferMinutes: number
+  sameRoom: { start: string; end: string }[] | null
+  otherRooms: RoomOption[] | null
+  occurrences?: Occurrence[]
+}
+
+export interface Contract {
+  id: ID
+  userId: ID
+  title: string
+  body: string
+  method: 'digital' | 'scan'
+  status: 'pending' | 'signed' | 'cancelled'
+  expiresAt: string
+  sentAt: string | null
+  signedName: string
+  signedAt: string | null
+  createdAt: string
+  userName: string
+  userEmail: string
+  userPhone: string | null
+}
+
+export interface PublicContract {
+  title: string
+  body: string
+  status: 'pending' | 'signed' | 'cancelled' | 'expired'
+  name: string
+  signedAt: string | null
+  expiresAt: string
 }
 
 export interface PriceQuote {

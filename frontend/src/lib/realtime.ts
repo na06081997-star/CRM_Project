@@ -65,8 +65,9 @@ export function useSocket(path: '/ws' | '/ws/signage', onEvent: Listener, enable
 const invalidations: Record<string, string[][]> = {
   'booking.changed': [['bookings'], ['dashboard'], ['availability'], ['balances'], ['reports']],
   'request.changed': [['requests'], ['dashboard']],
-  'payment.changed': [['payments'], ['balances'], ['dashboard'], ['bookings']],
+  'payment.changed': [['payments'], ['balances'], ['dashboard'], ['bookings'], ['billing']],
   'task.changed': [['tasks'], ['dashboard']],
+  'user.changed': [['users'], ['contracts']],
   notification: [['notifications']],
 }
 

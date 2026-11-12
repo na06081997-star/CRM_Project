@@ -65,6 +65,7 @@ const (
 	EvTaskChanged    = "task.changed"
 	EvSignageChanged = "signage.changed"
 	EvNotification   = "notification"
+	EvUserChanged    = "user.changed"
 )
 
 func (s *Service) emit(ctx context.Context, typ string, data any, topics ...string) {

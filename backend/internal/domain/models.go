@@ -208,6 +208,7 @@ type BookingRequest struct {
 	ActivityID      *uuid.UUID    `json:"activityId"`
 	TablesCount     int           `json:"tablesCount"`
 	ChairsCount     int           `json:"chairsCount"`
+	RepeatUntil     *time.Time    `json:"repeatUntil"` // weekly until this date (inclusive)
 	Title           string        `json:"title"`
 	EventKind       string        `json:"eventKind"`
 	StartsAt        time.Time     `json:"startsAt"`
@@ -241,6 +242,9 @@ type BookingRequest struct {
 	PaidAt        *time.Time `json:"paidAt"`
 	// Computed at read time for pending requests
 	HasConflict bool `json:"hasConflict"`
+	// Set by the approval of a weekly request
+	ApprovedCount int         `json:"approvedCount,omitempty"`
+	SkippedDates  []time.Time `json:"skippedDates,omitempty"`
 }
 
 type PaymentMethod string
@@ -298,11 +302,46 @@ type Task struct {
 	CompletedAt    *time.Time `json:"completedAt"`
 	CompletionNote string     `json:"completionNote"`
 	ReminderSentAt *time.Time `json:"reminderSentAt"`
+	ReportedBy     *uuid.UUID `json:"reportedBy"` // set on tickets opened by a coordinator
 	CreatedAt      time.Time  `json:"createdAt"`
 	// Denormalised
-	RoomName     *string `json:"roomName"`
-	AssigneeName *string `json:"assigneeName"`
+	RoomName      *string `json:"roomName"`
+	AssigneeName  *string `json:"assigneeName"`
+	ReporterName  *string `json:"reporterName"`
+	ReporterPhone *string `json:"reporterPhone"`
+	BookingTitle  *string `json:"bookingTitle"`
 }
+
+// IsTicket reports whether the task was reported from outside the operations team.
+func (t Task) IsTicket() bool { return t.ReportedBy != nil }
+
+// Contract is an agreement sent to a coordinator. Signing it (online, or by
+// uploading a signed scan) activates the coordinator's account.
+type Contract struct {
+	ID         uuid.UUID  `json:"id"`
+	UserID     uuid.UUID  `json:"userId"`
+	Title      string     `json:"title"`
+	Body       string     `json:"body"`
+	Method     string     `json:"method"` // digital | scan
+	Status     string     `json:"status"` // pending | signed | cancelled
+	Token      string     `json:"-"`
+	ExpiresAt  time.Time  `json:"expiresAt"`
+	SentAt     *time.Time `json:"sentAt"`
+	SignedName string     `json:"signedName"`
+	SignedAt   *time.Time `json:"signedAt"`
+	SignedIP   string     `json:"-"`
+	CreatedAt  time.Time  `json:"createdAt"`
+	// Denormalised
+	UserName  string  `json:"userName"`
+	UserEmail string  `json:"userEmail"`
+	UserPhone *string `json:"userPhone"`
+}
+
+const (
+	ContractPending   = "pending"
+	ContractSigned    = "signed"
+	ContractCancelled = "cancelled"
+)
 
 type TaskSchedule struct {
 	ID              uuid.UUID  `json:"id"`

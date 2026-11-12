@@ -39,7 +39,7 @@ export function PaymentDialog({ booking, open, onClose }: { booking: Booking | n
       }),
     onSuccess: () => {
       toast.success('התשלום נרשם')
-      for (const k of ['payments', 'balances', 'bookings', 'dashboard', 'customers']) qc.invalidateQueries({ queryKey: [k] })
+      for (const k of ['payments', 'balances', 'billing', 'bookings', 'dashboard', 'customers', 'reports']) qc.invalidateQueries({ queryKey: [k] })
       onClose()
     },
     onError: (e) => {

@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -25,6 +26,8 @@ type BookingInput struct {
 	CustomerID    *uuid.UUID           `json:"customerId"`
 	Attendees     int                  `json:"attendees"`
 	Equipment     []string             `json:"equipment"`
+	TablesCount   int                  `json:"tablesCount"`
+	ChairsCount   int                  `json:"chairsCount"`
 	Price         *float64             `json:"price"` // nil → computed quote
 	Notes         string               `json:"notes"`
 	InternalNotes string               `json:"internalNotes"`
@@ -60,6 +63,9 @@ func (in *BookingInput) normalize() error {
 	}
 	if in.Attendees < 0 {
 		v.Add("attendees", "מספר משתתפים לא תקין")
+	}
+	if in.TablesCount < 0 || in.ChairsCount < 0 {
+		v.Add("chairsCount", "כמות לא תקינה")
 	}
 	if in.Price != nil && *in.Price < 0 {
 		v.Add("price", "מחיר לא תקין")
@@ -197,6 +203,7 @@ func (s *Service) CreateBooking(ctx context.Context, actor Actor, in BookingInpu
 				StartsAt: st, EndsAt: st.Add(duration), BufferMinutes: buffer,
 				ActivityID: in.ActivityID, CoordinatorID: in.CoordinatorID, CustomerID: in.CustomerID,
 				SeriesID: seriesID, Attendees: in.Attendees, Equipment: in.Equipment, Price: price,
+				TablesCount: in.TablesCount, ChairsCount: in.ChairsCount,
 				Notes: in.Notes, InternalNotes: in.InternalNotes, CreatedBy: actor.ID(),
 			}
 			existing, err := tx.BlockingBookings(ctx, room.ID, b.StartsAt.Add(-4*time.Hour), b.BlockedUntil())
@@ -239,6 +246,7 @@ func (s *Service) UpdateBooking(ctx context.Context, actor Actor, id uuid.UUID, 
 		return domain.Booking{}, err
 	}
 	var updated domain.Booking
+	var dropped []domain.Task
 	err := s.store.InTx(ctx, func(tx *store.Store) error {
 		cur, err := tx.BookingByID(ctx, id)
 		if err != nil {
@@ -253,6 +261,7 @@ func (s *Service) UpdateBooking(ctx context.Context, actor Actor, id uuid.UUID, 
 		b.StartsAt, b.EndsAt = in.StartsAt, in.EndsAt
 		b.ActivityID, b.CoordinatorID, b.CustomerID = in.ActivityID, in.CoordinatorID, in.CustomerID
 		b.Attendees, b.Equipment, b.Notes, b.InternalNotes = in.Attendees, in.Equipment, in.Notes, in.InternalNotes
+		b.TablesCount, b.ChairsCount = in.TablesCount, in.ChairsCount
 		if in.Price != nil {
 			b.Price = *in.Price
 		}
@@ -274,11 +283,15 @@ func (s *Service) UpdateBooking(ctx context.Context, actor Actor, id uuid.UUID, 
 		if errors.Is(err, store.ErrOverlap) {
 			return &domain.ConflictError{}
 		}
+		if err == nil && cur.Status.Blocks() && !b.Status.Blocks() {
+			dropped, err = tx.CancelBookingTasks(ctx, []uuid.UUID{id})
+		}
 		return err
 	})
 	if err != nil {
 		return domain.Booking{}, err
 	}
+	s.bookingTasksCancelled(ctx, dropped)
 	s.audit(ctx, actor, "booking", id, "update", map[string]any{"title": updated.Title, "startsAt": updated.StartsAt, "status": updated.Status})
 	s.bookingChanged(ctx, "updated", updated)
 	return updated, nil
@@ -295,6 +308,7 @@ func (s *Service) MoveBooking(ctx context.Context, actor Actor, id uuid.UUID, ro
 		RoomID: roomID, Title: cur.Title, Type: cur.Type, Status: cur.Status, StartsAt: start, EndsAt: end,
 		ActivityID: cur.ActivityID, CoordinatorID: cur.CoordinatorID, CustomerID: cur.CustomerID,
 		Attendees: cur.Attendees, Equipment: cur.Equipment, Price: &price, Notes: cur.Notes, InternalNotes: cur.InternalNotes,
+		TablesCount: cur.TablesCount, ChairsCount: cur.ChairsCount,
 	}
 	return s.UpdateBooking(ctx, actor, id, in)
 }
@@ -314,17 +328,15 @@ func (s *Service) CancelBooking(ctx context.Context, actor Actor, id uuid.UUID, 
 			return err
 		}
 	}
+	var dropped []domain.Task
 	err = s.store.InTx(ctx, func(tx *store.Store) error {
-		for _, t := range targets {
-			if err := tx.SetBookingStatus(ctx, t.ID, domain.StatusCancelled); err != nil {
-				return err
-			}
-		}
-		return nil
+		dropped, err = cancelBookings(ctx, tx, targets)
+		return err
 	})
 	if err != nil {
 		return err
 	}
+	s.bookingTasksCancelled(ctx, dropped)
 	for i := range targets {
 		targets[i].Status = domain.StatusCancelled
 		s.audit(ctx, actor, "booking", targets[i].ID, "cancel", map[string]any{"title": targets[i].Title})
@@ -351,7 +363,43 @@ func (s *Service) DeleteBooking(ctx context.Context, actor Actor, id uuid.UUID) 
 	}
 	s.audit(ctx, actor, "booking", id, "delete", map[string]any{"title": b.Title})
 	s.bookingChanged(ctx, "deleted", b)
+	// Attached tasks were deleted with the booking (ON DELETE CASCADE).
+	s.emit(ctx, EvTaskChanged, map[string]any{"action": "deleted"}, realtime.TopicStaff)
 	return nil
+}
+
+// cancelBookings cancels bookings inside tx. Their turnover (cleaning) buffer
+// is released with them: only pending/confirmed bookings block a room, both in
+// the exclusion constraint and in FindConflicts. The cleaning/setup tasks
+// attached to them are cancelled too; the cancelled tasks are returned.
+func cancelBookings(ctx context.Context, tx *store.Store, bs []domain.Booking) ([]domain.Task, error) {
+	ids := make([]uuid.UUID, 0, len(bs))
+	for _, b := range bs {
+		if !b.Status.Blocks() {
+			continue
+		}
+		if err := tx.SetBookingStatus(ctx, b.ID, domain.StatusCancelled); err != nil {
+			return nil, err
+		}
+		ids = append(ids, b.ID)
+	}
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	return tx.CancelBookingTasks(ctx, ids)
+}
+
+// bookingTasksCancelled tells workers that their task for a cancelled booking is off.
+func (s *Service) bookingTasksCancelled(ctx context.Context, tasks []domain.Task) {
+	for _, t := range tasks {
+		s.taskChanged(ctx, t)
+		if t.AssigneeID == nil {
+			continue
+		}
+		if u, err := s.store.UserByID(ctx, *t.AssigneeID); err == nil {
+			s.notifyUser(u, "משימה בוטלה", fmt.Sprintf("ההזמנה בוטלה ולכן המשימה \"%s\" (%s) אינה נדרשת עוד.", t.Title, t.DueAt.In(s.loc).Format("02/01 15:04")))
+		}
+	}
 }
 
 func (s *Service) bookingChanged(ctx context.Context, action string, bs ...domain.Booking) {

@@ -6,7 +6,7 @@ import { useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Badge, Button, Empty, Field, Input, PageLoader, Select, Toggle } from '@/components/ui'
 import { api } from '@/lib/api'
-import { dateLong, time, timeRange } from '@/lib/format'
+import { dateLong, time, timeRange, ltr } from '@/lib/format'
 import { roomKindLabel } from '@/lib/labels'
 import { useLookups } from '@/lib/queries'
 import type { RoomAvailability } from '@/lib/types'
@@ -77,7 +77,7 @@ export function SearchPage() {
             {free.length} חללים פנויים מתוך {all.length} בתאריך ובשעות שבחרת
           </h2>
           <p className="text-xs text-muted">
-            {dateLong(`${query.date}T12:00:00`)} · {query.from}–{query.to} · הזמינות עשויה להשתנות עד לאישור
+            {dateLong(`${query.date}T12:00:00`)} · {ltr(`${query.from}–${query.to}`)} · הזמינות עשויה להשתנות עד לאישור
           </p>
         </div>
         <Toggle checked={onlyFree} onChange={setOnlyFree} label="הצגת פנויים בלבד" />

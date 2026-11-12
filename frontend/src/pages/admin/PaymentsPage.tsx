@@ -1,15 +1,16 @@
 import clsx from 'clsx'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Banknote, CreditCard, Download, FileClock, Landmark, ReceiptText, Trash2, Wallet } from 'lucide-react'
+import { Banknote, Building2, CreditCard, Download, FileClock, Landmark, ReceiptText, Search, Trash2, Wallet } from 'lucide-react'
+import { addMonths, startOfMonth, startOfYear } from 'date-fns'
 import { useState } from 'react'
 import { PaymentDialog } from '@/components/PaymentDialog'
 import { toast } from '@/components/toast'
-import { Badge, Button, Card, Confirm, Empty, IconButton, PageHeader, PageLoader, Stat, Tabs } from '@/components/ui'
+import { Badge, Button, Card, Confirm, Empty, IconButton, Input, PageHeader, PageLoader, Stat, Tabs } from '@/components/ui'
 import { api, errorMessage } from '@/lib/api'
 import { useCan } from '@/lib/auth'
-import { dateShort, dateTime, money, timeRange } from '@/lib/format'
+import { dateShort, dateTime, fmt, money, timeRange } from '@/lib/format'
 import { paymentMethodLabel } from '@/lib/labels'
-import type { AuditEntry, Booking, Payment, PaymentMethod, PaymentSummary } from '@/lib/types'
+import type { AuditEntry, Booking, Payment, PaymentMethod, PaymentSummary, Report } from '@/lib/types'
 
 const methodIcon: Record<PaymentMethod, JSX.Element> = {
   bank_transfer: <Landmark className="h-4 w-4" />,
@@ -20,7 +21,7 @@ const methodIcon: Record<PaymentMethod, JSX.Element> = {
 
 export function PaymentsPage() {
   const can = useCan()
-  const [tab, setTab] = useState<'balances' | 'payments' | 'audit'>('balances')
+  const [tab, setTab] = useState<'billing' | 'rooms' | 'payments' | 'audit'>('billing')
   const summary = useQuery({ queryKey: ['payments', 'summary'], queryFn: () => api.get<PaymentSummary>('/payments/summary') })
   const s = summary.data
 
@@ -45,82 +46,206 @@ export function PaymentsPage() {
         </div>
       )}
       <Tabs
-        className="mb-4"
+        className="mb-4 max-w-full overflow-x-auto [&>button]:shrink-0 [&>button]:whitespace-nowrap"
         value={tab}
         onChange={setTab}
         items={[
-          { value: 'balances', label: 'יתרות פתוחות' },
+          { value: 'billing', label: 'מי שילם / מי לא' },
+          { value: 'rooms', label: 'פילוח לפי אולם' },
           { value: 'payments', label: 'תשלומים שהתקבלו' },
           { value: 'audit', label: 'יומן ביקורת' },
         ]}
       />
-      {tab === 'balances' && <Balances canPay={can('payments:manage')} />}
+      {tab === 'billing' && <Billing canPay={can('payments:manage')} />}
+      {tab === 'rooms' && <ByRoom />}
       {tab === 'payments' && <PaymentsList canDelete={can('payments:manage')} />}
       {tab === 'audit' && <Audit />}
     </div>
   )
 }
 
-function Balances({ canPay }: { canPay: boolean }) {
+type PayFilter = 'open' | 'unpaid' | 'partial' | 'paid' | 'all'
+const payFilters: { value: PayFilter; label: string }[] = [
+  { value: 'open', label: 'טרם שולם במלואו' },
+  { value: 'unpaid', label: 'לא שילמו כלל' },
+  { value: 'partial', label: 'שולם חלקית' },
+  { value: 'paid', label: 'שולם במלואו' },
+  { value: 'all', label: 'הכל' },
+]
+
+function payState(b: Booking) {
+  if (b.paidAmount >= b.price) return { label: 'שולם', tone: 'green' as const }
+  if (b.paidAmount > 0) return { label: 'חלקי', tone: 'amber' as const }
+  return { label: 'לא שולם', tone: 'red' as const }
+}
+
+/** Charged bookings by payment state: who paid and who did not. */
+function Billing({ canPay }: { canPay: boolean }) {
   const [paying, setPaying] = useState<Booking | null>(null)
-  const { data = [], isLoading } = useQuery({ queryKey: ['balances'], queryFn: () => api.get<Booking[]>('/payments/balances') })
-  if (isLoading) return <PageLoader />
-  const total = data.reduce((s, b) => s + b.price - b.paidAmount, 0)
+  const [filter, setFilter] = useState<PayFilter>('open')
+  const [q, setQ] = useState('')
+  const { data = [], isLoading } = useQuery({ queryKey: ['billing', filter], queryFn: () => api.get<Booking[]>('/payments/billing', { payment: filter }) })
+  const term = q.trim().toLowerCase()
+  const list = term ? data.filter((b) => `${b.customerName ?? ''} ${b.title} ${b.roomName}`.toLowerCase().includes(term)) : data
+  const due = list.reduce((s, b) => s + Math.max(0, b.price - b.paidAmount), 0)
+  const paid = list.reduce((s, b) => s + b.paidAmount, 0)
+
   return (
-    <Card padded={false} title={`${data.length} הזמנות עם יתרה · ${money(total)}`}>
-      {data.length === 0 ? (
-        <Empty title="כל ההזמנות שולמו במלואן 🎉" />
-      ) : (
-        <div className="scroll-thin overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-subtle/70 text-xs text-muted">
-              <tr className="[&>th]:px-4 [&>th]:py-2.5 [&>th]:text-start [&>th]:font-medium">
-                <th>לקוח</th>
-                <th>הזמנה</th>
-                <th>מועד</th>
-                <th className="text-end">מחיר</th>
-                <th className="text-end">שולם</th>
-                <th className="text-end">יתרה</th>
-                <th>התקדמות</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-line">
-              {data.map((b) => {
-                const pct = b.price ? Math.round((b.paidAmount / b.price) * 100) : 0
-                const overdue = new Date(b.startsAt).getTime() < Date.now()
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="-mx-1 flex max-w-full gap-1.5 overflow-x-auto px-1 pb-1">
+          {payFilters.map((p) => (
+            <button
+              key={p.value}
+              onClick={() => setFilter(p.value)}
+              className={clsx('min-h-9 shrink-0 rounded-full border px-3 text-sm', filter === p.value ? 'border-brand bg-brand-soft font-semibold text-brand-strong' : 'border-line bg-surface')}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+        <label className="relative w-full sm:ms-auto sm:w-64">
+          <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="חיפוש לקוח / הזמנה" className="ps-9" />
+        </label>
+      </div>
+      <Card padded={false} title={`${list.length} הזמנות · שולם ${money(paid)} · יתרה ${money(due)}`}>
+        {isLoading ? (
+          <PageLoader />
+        ) : list.length === 0 ? (
+          <Empty title={filter === 'open' ? 'כל ההזמנות שולמו במלואן 🎉' : 'אין הזמנות בסינון זה'} />
+        ) : (
+          <>
+            {/* Phones: one card per booking */}
+            <ul className="divide-y divide-line sm:hidden">
+              {list.map((b) => {
+                const st = payState(b)
                 return (
-                  <tr key={b.id} className="[&>td]:px-4 [&>td]:py-3">
-                    <td className="font-medium">{b.customerName || '—'}</td>
-                    <td className="max-w-[220px] truncate">{b.title}</td>
-                    <td className="whitespace-nowrap tabular-nums text-muted">
-                      {dateShort(b.startsAt)} {timeRange(b.startsAt, b.endsAt)} {overdue && <Badge tone="red">עבר</Badge>}
-                    </td>
-                    <td className="text-end tabular-nums">{money(b.price)}</td>
-                    <td className="text-end tabular-nums">{money(b.paidAmount)}</td>
-                    <td className="text-end font-semibold tabular-nums text-danger">{money(b.price - b.paidAmount)}</td>
-                    <td className="w-32">
-                      <div className="h-1.5 overflow-hidden rounded-full bg-subtle">
-                        <div className={clsx('h-full rounded-full', pct >= 50 ? 'bg-ok' : 'bg-warn')} style={{ width: `${pct}%` }} />
+                  <li key={b.id} className="px-4 py-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="truncate font-medium">{b.customerName || '—'}</p>
+                        <p className="truncate text-xs text-muted">
+                          {b.title} · {dateShort(b.startsAt)} · {b.roomName}
+                        </p>
                       </div>
-                      <span className="text-[10px] text-muted">{pct}%</span>
-                    </td>
-                    <td>
-                      {canPay && (
+                      <Badge tone={st.tone}>{st.label}</Badge>
+                    </div>
+                    <div className="mt-2 flex items-center justify-between text-sm">
+                      <span className="tabular-nums text-muted">
+                        {money(b.paidAmount)} / {money(b.price)}
+                      </span>
+                      {b.price > b.paidAmount && canPay ? (
                         <Button size="sm" variant="soft" onClick={() => setPaying(b)}>
                           רישום תשלום
                         </Button>
-                      )}
-                    </td>
-                  </tr>
+                      ) : null}
+                    </div>
+                  </li>
                 )
               })}
-            </tbody>
-          </table>
-        </div>
-      )}
-      <PaymentDialog booking={paying} open={!!paying} onClose={() => setPaying(null)} />
-    </Card>
+            </ul>
+            <div className="scroll-thin hidden overflow-x-auto sm:block">
+              <table className="w-full text-sm">
+                <thead className="bg-subtle/70 text-xs text-muted">
+                  <tr className="[&>th]:px-4 [&>th]:py-2.5 [&>th]:text-start [&>th]:font-medium">
+                    <th>לקוח</th>
+                    <th>הזמנה</th>
+                    <th>חלל</th>
+                    <th>מועד</th>
+                    <th className="text-end">מחיר</th>
+                    <th className="text-end">שולם</th>
+                    <th className="text-end">יתרה</th>
+                    <th>סטטוס</th>
+                    <th />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-line">
+                  {list.map((b) => {
+                    const st = payState(b)
+                    const balance = b.price - b.paidAmount
+                    const overdue = balance > 0 && new Date(b.startsAt).getTime() < Date.now()
+                    return (
+                      <tr key={b.id} className="[&>td]:px-4 [&>td]:py-3">
+                        <td className="font-medium">{b.customerName || '—'}</td>
+                        <td className="max-w-[200px] truncate">{b.title}</td>
+                        <td className="whitespace-nowrap text-muted">{b.roomName}</td>
+                        <td className="whitespace-nowrap tabular-nums text-muted">
+                          {dateShort(b.startsAt)} {timeRange(b.startsAt, b.endsAt)} {overdue && <Badge tone="red">עבר</Badge>}
+                        </td>
+                        <td className="text-end tabular-nums">{money(b.price)}</td>
+                        <td className="text-end tabular-nums">{money(b.paidAmount)}</td>
+                        <td className={clsx('text-end font-semibold tabular-nums', balance > 0 ? 'text-danger' : 'text-ok')}>{money(Math.max(0, balance))}</td>
+                        <td>
+                          <Badge tone={st.tone}>{st.label}</Badge>
+                        </td>
+                        <td>
+                          {canPay && balance > 0 && (
+                            <Button size="sm" variant="soft" onClick={() => setPaying(b)}>
+                              רישום תשלום
+                            </Button>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+        <PaymentDialog booking={paying} open={!!paying} onClose={() => setPaying(null)} />
+      </Card>
+    </div>
+  )
+}
+
+/** Revenue per room / hall over a period. */
+function ByRoom() {
+  const presets = [
+    { key: 'month', label: 'החודש', from: startOfMonth(new Date()), to: addMonths(startOfMonth(new Date()), 1) },
+    { key: 'quarter', label: '3 חודשים', from: addMonths(startOfMonth(new Date()), -2), to: addMonths(startOfMonth(new Date()), 1) },
+    { key: 'year', label: 'השנה', from: startOfYear(new Date()), to: addMonths(startOfMonth(new Date()), 1) },
+  ]
+  const [preset, setPreset] = useState('quarter')
+  const p = presets.find((x) => x.key === preset)!
+  const from = fmt(p.from, 'yyyy-MM-dd')
+  const to = fmt(p.to, 'yyyy-MM-dd')
+  const { data, isLoading } = useQuery({ queryKey: ['reports', from, to], queryFn: () => api.get<Report>('/reports', { from, to }) })
+  const rows = data?.byRoom ?? []
+  const max = Math.max(1, ...rows.map((r) => r.revenue))
+
+  return (
+    <div className="space-y-3">
+      <Tabs value={preset} onChange={setPreset} items={presets.map((x) => ({ value: x.key, label: x.label }))} />
+      <Card padded={false} title={data ? `הכנסות ${money(data.totals.revenue)} · נגבה ${money(data.totals.paid)}` : 'פילוח לפי אולם'}>
+        {isLoading ? (
+          <PageLoader />
+        ) : rows.length === 0 ? (
+          <Empty icon={<Building2 className="h-6 w-6" />} title="אין הזמנות מאושרות בתקופה" />
+        ) : (
+          <ul className="divide-y divide-line">
+            {rows.map((r) => (
+              <li key={r.key} className="px-4 py-3">
+                <div className="flex items-baseline justify-between gap-3">
+                  <p className="min-w-0 truncate font-medium">{r.label}</p>
+                  <p className="shrink-0 font-semibold tabular-nums">{money(r.revenue)}</p>
+                </div>
+                <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-subtle">
+                  <div className="h-full rounded-full bg-brand" style={{ width: `${(r.revenue / max) * 100}%` }} />
+                </div>
+                <p className="mt-1 flex flex-wrap gap-x-3 text-xs text-muted">
+                  <span>{r.bookings} הזמנות</span>
+                  <span>{r.hours.toFixed(1)} שעות</span>
+                  <span>נגבה {money(r.paid)}</span>
+                  {r.revenue > r.paid && <span className="text-danger">יתרה {money(r.revenue - r.paid)}</span>}
+                </p>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
+    </div>
   )
 }
 
