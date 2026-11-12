@@ -42,6 +42,19 @@ type CoordinatorResult struct {
 	Contract *domain.Contract `json:"contract"`
 	// SignURL is the signing link (digital contracts), to copy or send again.
 	SignURL string `json:"signUrl,omitempty"`
+	// SentVia lists the channels that really deliver the link (empty: copy and share it yourself).
+	SentVia []string `json:"sentVia"`
+}
+
+// deliveryChannels are the configured channels that reach the person (console only logs).
+func (s *Service) deliveryChannels() []string {
+	out := []string{}
+	for _, c := range s.cfg.NotifyChannels {
+		if c != "console" {
+			out = append(out, c)
+		}
+	}
+	return out
 }
 
 func (s *Service) CreateCoordinator(ctx context.Context, actor Actor, in CoordinatorInput) (CoordinatorResult, error) {
@@ -104,7 +117,7 @@ func (s *Service) CreateCoordinator(ctx context.Context, actor Actor, in Coordin
 		if err := s.sendContract(ctx, *res.Contract, res.User); err != nil {
 			return res, err
 		}
-		res.SignURL = s.signURL(res.Contract.Token)
+		res.SignURL, res.SentVia = s.signURL(res.Contract.Token), s.deliveryChannels()
 	}
 	return res, nil
 }
@@ -196,7 +209,7 @@ func (s *Service) CreateContract(ctx context.Context, actor Actor, in ContractIn
 		if err := s.sendContract(ctx, c, u); err != nil {
 			return res, err
 		}
-		res.SignURL = s.signURL(c.Token)
+		res.SignURL, res.SentVia = s.signURL(c.Token), s.deliveryChannels()
 	}
 	return res, nil
 }
@@ -224,7 +237,7 @@ func (s *Service) ResendContract(ctx context.Context, actor Actor, id uuid.UUID)
 	}
 	s.audit(ctx, actor, "contract", c.ID, "resend", nil)
 	c, _ = s.store.ContractByID(ctx, id)
-	return CoordinatorResult{User: u, Contract: &c, SignURL: s.signURL(c.Token)}, nil
+	return CoordinatorResult{User: u, Contract: &c, SignURL: s.signURL(c.Token), SentVia: s.deliveryChannels()}, nil
 }
 
 // MarkContractSigned closes a contract whose signed scan was uploaded and opens the account.

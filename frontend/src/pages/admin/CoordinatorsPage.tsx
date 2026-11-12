@@ -1,7 +1,7 @@
 import clsx from 'clsx'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { addDays, startOfWeek } from 'date-fns'
-import { CalendarDays, Copy, FileSignature, FileText, Mail, Phone, Send, UserPlus } from 'lucide-react'
+import { CalendarDays, Copy, FileSignature, FileText, Mail, MessageCircle, Phone, Send, UserPlus } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Attachments } from '@/components/Attachments'
@@ -20,6 +20,7 @@ interface CoordinatorResult {
   user: User
   contract: Contract | null
   signUrl?: string
+  sentVia?: string[]
 }
 
 type ContractMode = 'digital' | 'scan' | 'none'
@@ -166,11 +167,23 @@ export function CoordinatorsPage() {
   )
 }
 
-/** Signing link to copy (also sent by SMS / e-mail). */
-function SignLink({ url }: { url: string }) {
+const channelLabel: Record<string, string> = { sms019: 'SMS', twilio: 'SMS', email: 'אימייל', telegram: 'טלגרם' }
+
+/** WhatsApp link with the message ready (to the coordinator's number when known). */
+function whatsappUrl(text: string, phone?: string | null) {
+  const digits = (phone ?? '').replace(/\D/g, '')
+  const intl = digits.startsWith('0') ? '972' + digits.slice(1) : digits
+  return `https://wa.me/${intl}?text=${encodeURIComponent(text)}`
+}
+
+/** Signing link: sent automatically when a channel is configured, otherwise shared by hand. */
+function SignLink({ url, sentVia = [], phone, name }: { url: string; sentVia?: string[]; phone?: string | null; name?: string }) {
+  const via = [...new Set(sentVia.map((c) => channelLabel[c] ?? c))]
+  const message = `שלום${name ? ' ' + name : ''}, זה הקישור לחתימה על החוזה מול המתנ״ס: ${url}`
   return (
     <div className="rounded-xl border border-ok/30 bg-emerald-50 p-3 text-sm dark:bg-emerald-950/20">
-      <p className="font-semibold text-ok">הקישור לחתימה נשלח ב־SMS ובאימייל</p>
+      <p className="font-semibold text-ok">{via.length ? `הקישור לחתימה נשלח (${via.join(' + ')})` : 'הקישור לחתימה מוכן'}</p>
+      {!via.length && <p className="mt-0.5 text-xs text-muted">שליחה אוטומטית ב־SMS / אימייל עדיין לא הוגדרה – שלחו את הקישור בוואטסאפ או העתיקו אותו.</p>}
       <div className="mt-2 flex items-center gap-2">
         <code dir="ltr" className="min-w-0 flex-1 truncate rounded-lg bg-surface px-2 py-1.5 text-xs">
           {url}
@@ -184,6 +197,11 @@ function SignLink({ url }: { url: string }) {
           העתקה
         </Button>
       </div>
+      <a href={whatsappUrl(message, phone)} target="_blank" rel="noreferrer" className="mt-2 block">
+        <Button size="sm" className="w-full bg-[#25d366] text-white hover:bg-[#1ebe5b]" icon={<MessageCircle className="h-4 w-4" />}>
+          שליחה בוואטסאפ
+        </Button>
+      </a>
       <p className="mt-2 text-xs text-muted">החשבון ייפתח אוטומטית מיד לאחר החתימה. הקישור בתוקף 14 יום.</p>
     </div>
   )
@@ -267,7 +285,7 @@ function NewCoordinatorDialog({ open, onClose }: { open: boolean; onClose: () =>
           <p className="text-sm">
             <b>{result.user.fullName}</b> נוסף/ה כרכז/ת. החשבון ייפתח לאחר חתימה על החוזה.
           </p>
-          {result.signUrl && <SignLink url={result.signUrl} />}
+          {result.signUrl && <SignLink url={result.signUrl} sentVia={result.sentVia} phone={result.user.phone} name={result.user.fullName} />}
           {result.contract?.method === 'scan' && <ScanUpload contract={result.contract} onSigned={close} />}
         </div>
       ) : (
@@ -357,7 +375,7 @@ function SendContractDialog({ user, onClose }: { user: User | null; onClose: () 
     >
       {result ? (
         <div className="space-y-4">
-          {result.signUrl && <SignLink url={result.signUrl} />}
+          {result.signUrl && <SignLink url={result.signUrl} sentVia={result.sentVia} phone={result.user.phone} name={result.user.fullName} />}
           {result.contract?.method === 'scan' && <ScanUpload contract={result.contract} onSigned={close} />}
         </div>
       ) : (
@@ -408,11 +426,11 @@ function ScanUpload({ contract, onSigned }: { contract: Contract; onSigned: () =
 
 function ContractDialog({ contract, onClose }: { contract: Contract | null; onClose: () => void }) {
   const qc = useQueryClient()
-  const [link, setLink] = useState<string | null>(null)
+  const [link, setLink] = useState<{ url: string; sentVia?: string[] } | null>(null)
   const resend = useMutation({
     mutationFn: () => api.post<CoordinatorResult>(`/contracts/${contract!.id}/resend`),
     onSuccess: (r) => {
-      setLink(r.signUrl ?? null)
+      setLink(r.signUrl ? { url: r.signUrl, sentVia: r.sentVia } : null)
       qc.invalidateQueries({ queryKey: ['contracts'] })
     },
     onError: (e) => toast.error(errorMessage(e)),
@@ -464,7 +482,7 @@ function ContractDialog({ contract, onClose }: { contract: Contract | null; onCl
           {contract.userName} · {contract.method === 'digital' ? 'חתימה דיגיטלית' : 'סריקה'}
           {contract.sentAt && ` · נשלח ${dateTime(contract.sentAt)}`}
         </p>
-        {link && <SignLink url={link} />}
+        {link && <SignLink url={link.url} sentVia={link.sentVia} phone={contract.userPhone} name={contract.userName} />}
         {contract.status === 'signed' && (
           <div className="rounded-xl bg-emerald-50 p-3 text-sm dark:bg-emerald-950/20">
             נחתם ע״י <b>{contract.signedName}</b> {contract.signedAt && `ב־${dateTime(contract.signedAt)}`}
