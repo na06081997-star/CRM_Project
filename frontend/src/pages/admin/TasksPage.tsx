@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { addDays, startOfDay } from 'date-fns'
 import { BellRing, CalendarClock, Camera, CheckCircle2, Circle, Clock, MessageSquareWarning, Phone, Plus, Repeat, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { PhotoGallery } from '@/components/Photos'
+import { PhotoGallery, PhotoPicker, PhotoUploader, uploadPhotos } from '@/components/Photos'
 import { toast } from '@/components/toast'
 import { Avatar, Badge, Button, Card, Empty, Field, IconButton, Input, Modal, PageHeader, PageLoader, Select, Tabs, Textarea, Toggle } from '@/components/ui'
 import { api, errorMessage } from '@/lib/api'
@@ -146,13 +146,28 @@ function TaskDialog({ task, onClose }: { task: Partial<Task> | null; onClose: ()
   const staff = useUsers('staff').data ?? []
   const { rooms } = useLookups()
   const [f, setF] = useState<Partial<Task>>({})
-  useEffect(() => setF(task ?? {}), [task])
+  const [photos, setPhotos] = useState<File[]>([])
+  useEffect(() => {
+    setF(task ?? {})
+    setPhotos([])
+  }, [task])
   const isNew = !task?.id
   const save = useMutation({
-    mutationFn: () => (isNew ? api.post('/tasks', f) : api.put(`/tasks/${task!.id}`, f)),
+    mutationFn: async () => {
+      const t = isNew ? await api.post<Task>('/tasks', f) : await api.put<Task>(`/tasks/${task!.id}`, f)
+      if (isNew && photos.length) {
+        try {
+          await uploadPhotos('task', t.id, photos)
+        } catch (e) {
+          toast.error('המשימה נוצרה, אך התמונה לא הועלתה: ' + errorMessage(e))
+        }
+      }
+      return t
+    },
     onSuccess: () => {
       toast.success(isNew ? 'המשימה נוצרה והעובד/ת קיבלו התראה' : 'המשימה עודכנה')
       qc.invalidateQueries({ queryKey: ['tasks'] })
+      qc.invalidateQueries({ queryKey: ['files'] })
       onClose()
     },
     onError: (e) => toast.error(errorMessage(e)),
@@ -245,9 +260,19 @@ function TaskDialog({ task, onClose }: { task: Partial<Task> | null; onClose: ()
             )}
           </div>
         )}
+        <div className="rounded-xl border border-line p-3 sm:col-span-2">
+          {task?.id ? (
+            <PhotoUploader entity="task" entityId={task.id} title="תמונות – מה צריך לעשות" hint={photoHint(f.kind)} />
+          ) : (
+            <>
+              <p className="text-sm font-medium">תמונות – מה צריך לעשות</p>
+              <p className="mb-2 text-xs text-muted">{photoHint(f.kind)}</p>
+              <PhotoPicker files={photos} onChange={setPhotos} max={4} />
+            </>
+          )}
+        </div>
         {task?.id && (
-          <div className="space-y-3 sm:col-span-2">
-            <PhotoGallery entity="task" entityId={task.id} title="תמונות מהפנייה" />
+          <div className="sm:col-span-2">
             <PhotoGallery entity="task_done" entityId={task.id} title="תמונות לאחר הביצוע" />
           </div>
         )}
@@ -469,4 +494,12 @@ function UnassignedTickets({ onOpen }: { onOpen: (t: Task) => void }) {
       </div>
     </section>
   )
+}
+
+/** What the manager's photo should show, by kind of task. */
+function photoHint(kind?: string) {
+  if (kind === 'cleaning') return 'צלמו או צרפו תמונה של מה שצריך לנקות – העובד/ת יראו אותה במשימה'
+  if (kind === 'repair' || kind === 'inspection') return 'צלמו או צרפו תמונה של מה שצריך לתקן – העובד/ת יראו אותה במשימה'
+  if (kind === 'setup') return 'צרפו תמונה / שרטוט של הסידור הרצוי – העובד/ת יראו אותה במשימה'
+  return 'צלמו או צרפו תמונה להבהרה – העובד/ת יראו אותה במשימה'
 }

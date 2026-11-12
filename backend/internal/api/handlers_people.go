@@ -159,3 +159,22 @@ func (s *Server) checkSlot(w http.ResponseWriter, r *http.Request) {
 	}
 	ok(w, res)
 }
+
+func (s *Server) customerContract(w http.ResponseWriter, r *http.Request) {
+	id, err := pathID(r)
+	if err != nil {
+		fail(w, r, err)
+		return
+	}
+	var in service.CustomerContractInput
+	if err := decode(r, &in); err != nil {
+		fail(w, r, err)
+		return
+	}
+	res, err := s.svc.CustomerContract(r.Context(), mustActor(r), id, in)
+	if err != nil {
+		fail(w, r, err)
+		return
+	}
+	created(w, res)
+}

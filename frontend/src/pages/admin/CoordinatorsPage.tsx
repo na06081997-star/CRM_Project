@@ -1,40 +1,21 @@
 import clsx from 'clsx'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { addDays, startOfWeek } from 'date-fns'
-import { CalendarDays, Copy, FileSignature, FileText, Mail, MessageCircle, Phone, Send, UserPlus } from 'lucide-react'
+import { CalendarDays, FileSignature, Mail, Phone, Send, UserPlus } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Attachments } from '@/components/Attachments'
-import { PhotoGallery } from '@/components/Photos'
+import { ContractDialog, ContractFields, coordinatorTemplate as contractTemplate, type ContractResult as CoordinatorResult, ScanUpload, SendContractDialog, SignLink } from '@/components/Contracts'
 import { toast } from '@/components/toast'
-import { Avatar, Badge, Button, Empty, Field, Input, Modal, PageHeader, PageLoader, Textarea } from '@/components/ui'
+import { Avatar, Badge, Button, Empty, Field, Input, Modal, PageHeader, PageLoader } from '@/components/ui'
 import { api, ApiError, errorMessage } from '@/lib/api'
 import { useCan } from '@/lib/auth'
 import { useOrg } from '@/lib/brand'
-import { dateShort, dateTime, ltr, timeRange } from '@/lib/format'
+import { dateShort, ltr, timeRange } from '@/lib/format'
 import { contractStatusLabel } from '@/lib/labels'
 import { useActivities, useUsers } from '@/lib/queries'
 import type { Booking, Contract, User } from '@/lib/types'
 
-interface CoordinatorResult {
-  user: User
-  contract: Contract | null
-  signUrl?: string
-  sentVia?: string[]
-}
-
 type ContractMode = 'digital' | 'scan' | 'none'
-
-function contractTemplate(org: string, name: string) {
-  return `הסכם התקשרות – רכז/ת פעילות ב${org}
-
-1. ${name || 'הרכז/ת'} ירכז/תרכז פעילויות קהילתיות בהתאם לתוכנית העבודה שתיקבע עם הנהלת המתנ״ס.
-2. הזמנת חללים תיעשה דרך המערכת בלבד ובכפוף לאישור המתנ״ס.
-3. הרכז/ת אחראי/ת לשמירה על החללים והציוד, ולדיווח על כל תקלה דרך המערכת.
-4. הרכז/ת ישמור/תשמור על נהלי הבטיחות, הניקיון ושעות הפעילות של המתנ״ס.
-5. הרכז/ת ישמור/תשמור על פרטיות המשתתפים ועל סודיות המידע שיגיע לידיעתו/ה.
-6. כל צד רשאי לסיים את ההתקשרות בהודעה מוקדמת בכתב.`
-}
 
 export function CoordinatorsPage() {
   const can = useCan()
@@ -161,62 +142,9 @@ export function CoordinatorsPage() {
         </div>
       )}
       <NewCoordinatorDialog open={adding} onClose={() => setAdding(false)} />
-      <SendContractDialog user={contractFor} onClose={() => setContractFor(null)} />
+      <SendContractDialog target={contractFor && { kind: 'user', user: contractFor }} onClose={() => setContractFor(null)} />
       <ContractDialog contract={viewing} onClose={() => setViewing(null)} />
     </div>
-  )
-}
-
-const channelLabel: Record<string, string> = { sms019: 'SMS', twilio: 'SMS', email: 'אימייל', telegram: 'טלגרם' }
-
-/** WhatsApp link with the message ready (to the coordinator's number when known). */
-function whatsappUrl(text: string, phone?: string | null) {
-  const digits = (phone ?? '').replace(/\D/g, '')
-  const intl = digits.startsWith('0') ? '972' + digits.slice(1) : digits
-  return `https://wa.me/${intl}?text=${encodeURIComponent(text)}`
-}
-
-/** Signing link: sent automatically when a channel is configured, otherwise shared by hand. */
-function SignLink({ url, sentVia = [], phone, name }: { url: string; sentVia?: string[]; phone?: string | null; name?: string }) {
-  const via = [...new Set(sentVia.map((c) => channelLabel[c] ?? c))]
-  const message = `שלום${name ? ' ' + name : ''}, זה הקישור לחתימה על החוזה מול המתנ״ס: ${url}`
-  return (
-    <div className="rounded-xl border border-ok/30 bg-emerald-50 p-3 text-sm dark:bg-emerald-950/20">
-      <p className="font-semibold text-ok">{via.length ? `הקישור לחתימה נשלח (${via.join(' + ')})` : 'הקישור לחתימה מוכן'}</p>
-      {!via.length && <p className="mt-0.5 text-xs text-muted">שליחה אוטומטית ב־SMS / אימייל עדיין לא הוגדרה – שלחו את הקישור בוואטסאפ או העתיקו אותו.</p>}
-      <div className="mt-2 flex items-center gap-2">
-        <code dir="ltr" className="min-w-0 flex-1 truncate rounded-lg bg-surface px-2 py-1.5 text-xs">
-          {url}
-        </code>
-        <Button
-          size="sm"
-          variant="secondary"
-          icon={<Copy className="h-3.5 w-3.5" />}
-          onClick={() => navigator.clipboard.writeText(url).then(() => toast.success('הקישור הועתק'), () => toast.error('לא ניתן להעתיק'))}
-        >
-          העתקה
-        </Button>
-      </div>
-      <a href={whatsappUrl(message, phone)} target="_blank" rel="noreferrer" className="mt-2 block">
-        <Button size="sm" className="w-full bg-[#25d366] text-white hover:bg-[#1ebe5b]" icon={<MessageCircle className="h-4 w-4" />}>
-          שליחה בוואטסאפ
-        </Button>
-      </a>
-      <p className="mt-2 text-xs text-muted">החשבון ייפתח אוטומטית מיד לאחר החתימה. הקישור בתוקף 14 יום.</p>
-    </div>
-  )
-}
-
-function ContractFields({ title, body, onTitle, onBody, errors }: { title: string; body: string; onTitle: (v: string) => void; onBody: (v: string) => void; errors: Record<string, string> }) {
-  return (
-    <>
-      <Field label="כותרת החוזה">
-        <Input value={title} onChange={(e) => onTitle(e.target.value)} />
-      </Field>
-      <Field label="נוסח החוזה" error={errors.body} hint="נוסח לדוגמה – ערכו לפי ההסכם של המתנ״ס">
-        <Textarea value={body} onChange={(e) => onBody(e.target.value)} rows={8} />
-      </Field>
-    </>
   )
 }
 
@@ -322,185 +250,6 @@ function NewCoordinatorDialog({ open, onClose }: { open: boolean; onClose: () =>
           )}
         </div>
       )}
-    </Modal>
-  )
-}
-
-function SendContractDialog({ user, onClose }: { user: User | null; onClose: () => void }) {
-  const qc = useQueryClient()
-  const org = useOrg()
-  const [method, setMethod] = useState<'digital' | 'scan'>('digital')
-  const [title, setTitle] = useState('הסכם התקשרות – רכז/ת')
-  const [body, setBody] = useState('')
-  const [errors, setErrors] = useState<Record<string, string>>({})
-  const [result, setResult] = useState<CoordinatorResult | null>(null)
-  const text = body || contractTemplate(org?.name ?? 'המתנ״ס', user?.fullName ?? '')
-  const close = () => {
-    setResult(null)
-    setBody('')
-    setErrors({})
-    onClose()
-  }
-  const send = useMutation({
-    mutationFn: () => api.post<CoordinatorResult>('/contracts', { userId: user!.id, method, title, body: text }),
-    onSuccess: (r) => {
-      qc.invalidateQueries({ queryKey: ['contracts'] })
-      setResult(r)
-    },
-    onError: (e) => {
-      if (e instanceof ApiError) setErrors(e.fields)
-      toast.error(errorMessage(e))
-    },
-  })
-  return (
-    <Modal
-      open={!!user}
-      onClose={close}
-      size="lg"
-      title={`חוזה ל${user?.fullName ?? ''}`}
-      footer={
-        result ? (
-          <Button onClick={close}>סיום</Button>
-        ) : (
-          <>
-            <Button variant="secondary" onClick={close}>
-              ביטול
-            </Button>
-            <Button loading={send.isPending} onClick={() => send.mutate()}>
-              {method === 'digital' ? 'שליחה לחתימה' : 'יצירה'}
-            </Button>
-          </>
-        )
-      }
-    >
-      {result ? (
-        <div className="space-y-4">
-          {result.signUrl && <SignLink url={result.signUrl} sentVia={result.sentVia} phone={result.user.phone} name={result.user.fullName} />}
-          {result.contract?.method === 'scan' && <ScanUpload contract={result.contract} onSigned={close} />}
-        </div>
-      ) : (
-        <div className="grid gap-4">
-          <div className="grid grid-cols-2 gap-2">
-            {(['digital', 'scan'] as const).map((m) => (
-              <button
-                key={m}
-                type="button"
-                onClick={() => setMethod(m)}
-                className={clsx('rounded-xl border p-3 text-sm font-semibold', method === m ? 'border-brand bg-brand-soft text-brand-strong' : 'border-line')}
-              >
-                {m === 'digital' ? 'חתימה דיגיטלית' : 'סריקת חוזה חתום'}
-              </button>
-            ))}
-          </div>
-          {method === 'digital' && !user?.phone && <p className="text-xs text-amber-700">אין טלפון לרכז/ת – הקישור יישלח באימייל בלבד.</p>}
-          <ContractFields title={title} body={text} onTitle={setTitle} onBody={setBody} errors={errors} />
-        </div>
-      )}
-    </Modal>
-  )
-}
-
-/** Upload a scanned signed contract, then confirm (opens the account). */
-function ScanUpload({ contract, onSigned }: { contract: Contract; onSigned: () => void }) {
-  const qc = useQueryClient()
-  const mark = useMutation({
-    mutationFn: () => api.post<Contract>(`/contracts/${contract.id}/mark-signed`),
-    onSuccess: () => {
-      toast.success('החוזה סומן כחתום והחשבון הופעל')
-      qc.invalidateQueries({ queryKey: ['contracts'] })
-      qc.invalidateQueries({ queryKey: ['users'] })
-      onSigned()
-    },
-    onError: (e) => toast.error(errorMessage(e)),
-  })
-  return (
-    <div className="space-y-3 rounded-xl border border-line p-3">
-      <p className="text-sm font-semibold">העלאת החוזה החתום</p>
-      <Attachments entity="contract" entityId={contract.id} />
-      <Button className="w-full" icon={<FileSignature className="h-4 w-4" />} loading={mark.isPending} onClick={() => mark.mutate()}>
-        אישור – החוזה נחתם, הפעלת החשבון
-      </Button>
-    </div>
-  )
-}
-
-function ContractDialog({ contract, onClose }: { contract: Contract | null; onClose: () => void }) {
-  const qc = useQueryClient()
-  const [link, setLink] = useState<{ url: string; sentVia?: string[] } | null>(null)
-  const resend = useMutation({
-    mutationFn: () => api.post<CoordinatorResult>(`/contracts/${contract!.id}/resend`),
-    onSuccess: (r) => {
-      setLink(r.signUrl ? { url: r.signUrl, sentVia: r.sentVia } : null)
-      qc.invalidateQueries({ queryKey: ['contracts'] })
-    },
-    onError: (e) => toast.error(errorMessage(e)),
-  })
-  const cancel = useMutation({
-    mutationFn: () => api.post(`/contracts/${contract!.id}/cancel`),
-    onSuccess: () => {
-      toast.success('החוזה בוטל')
-      qc.invalidateQueries({ queryKey: ['contracts'] })
-      close()
-    },
-    onError: (e) => toast.error(errorMessage(e)),
-  })
-  const close = () => {
-    setLink(null)
-    onClose()
-  }
-  if (!contract) return null
-  const pending = contract.status === 'pending'
-  return (
-    <Modal
-      open
-      onClose={close}
-      size="lg"
-      title={
-        <span className="flex items-center gap-2">
-          {contract.title}
-          <Badge tone={contract.status === 'signed' ? 'green' : pending ? 'amber' : 'gray'}>{contractStatusLabel[contract.status]}</Badge>
-        </span>
-      }
-      footer={
-        <>
-          {pending && (
-            <Button variant="ghost" className="me-auto text-danger" loading={cancel.isPending} onClick={() => cancel.mutate()}>
-              ביטול החוזה
-            </Button>
-          )}
-          {pending && contract.method === 'digital' && (
-            <Button variant="secondary" icon={<Send className="h-4 w-4" />} loading={resend.isPending} onClick={() => resend.mutate()}>
-              שליחה חוזרת
-            </Button>
-          )}
-          <Button onClick={close}>סגירה</Button>
-        </>
-      }
-    >
-      <div className="space-y-4">
-        <p className="text-sm text-muted">
-          {contract.userName} · {contract.method === 'digital' ? 'חתימה דיגיטלית' : 'סריקה'}
-          {contract.sentAt && ` · נשלח ${dateTime(contract.sentAt)}`}
-        </p>
-        {link && <SignLink url={link.url} sentVia={link.sentVia} phone={contract.userPhone} name={contract.userName} />}
-        {contract.status === 'signed' && (
-          <div className="rounded-xl bg-emerald-50 p-3 text-sm dark:bg-emerald-950/20">
-            נחתם ע״י <b>{contract.signedName}</b> {contract.signedAt && `ב־${dateTime(contract.signedAt)}`}
-          </div>
-        )}
-        <PhotoGallery entity="contract" entityId={contract.id} title="חתימה" />
-        {pending && contract.method === 'scan' ? (
-          <ScanUpload contract={contract} onSigned={close} />
-        ) : (
-          <Attachments entity="contract" entityId={contract.id} canDelete={pending} />
-        )}
-        <details className="rounded-xl border border-line p-3">
-          <summary className="flex cursor-pointer items-center gap-2 text-sm font-medium">
-            <FileText className="h-4 w-4 text-muted" /> נוסח החוזה
-          </summary>
-          <p className="mt-3 whitespace-pre-line text-sm leading-relaxed">{contract.body}</p>
-        </details>
-      </div>
     </Modal>
   )
 }

@@ -183,7 +183,7 @@ func (s *Service) CreateContract(ctx context.Context, actor Actor, in ContractIn
 		return CoordinatorResult{}, err
 	}
 	u, err := s.store.UserByID(ctx, in.UserID)
-	if err != nil || u.Role != domain.RoleCoordinator {
+	if err != nil || (u.Role != domain.RoleCoordinator && u.Role != domain.RoleUser) {
 		return CoordinatorResult{}, domain.ErrNotFound
 	}
 	v := domain.NewValidation()
@@ -394,4 +394,87 @@ func (s *Service) completeContract(ctx context.Context, c domain.Contract, name,
 	s.notifyManagers(ctx, "חוזה נחתם", fmt.Sprintf("%s חתם/ה על \"%s\". החשבון הופעל.", c.UserName, c.Title))
 	s.emit(ctx, EvUserChanged, map[string]any{"id": c.UserID}, realtime.TopicStaff)
 	return nil
+}
+
+// CustomerContractInput sends a contract to a customer (renter).
+type CustomerContractInput struct {
+	Method string `json:"method"` // digital | scan
+	Title  string `json:"title"`
+	Body   string `json:"body"`
+}
+
+// CustomerContract sends a contract to a customer. A customer without a
+// portal account gets one (inactive, with the customer's e-mail), which
+// opens once the contract is signed.
+func (s *Service) CustomerContract(ctx context.Context, actor Actor, customerID uuid.UUID, in CustomerContractInput) (CoordinatorResult, error) {
+	if err := actor.Require(domain.ActManageCoords); err != nil {
+		return CoordinatorResult{}, err
+	}
+	cu, err := s.store.CustomerByID(ctx, customerID)
+	if err != nil {
+		return CoordinatorResult{}, err
+	}
+	v := domain.NewValidation()
+	if in.Method != "digital" && in.Method != "scan" {
+		v.Add("method", "יש לבחור אופן חתימה")
+	}
+	if strings.TrimSpace(in.Title) == "" || strings.TrimSpace(in.Body) == "" {
+		v.Add("body", "יש להזין כותרת ונוסח לחוזה")
+	}
+	email := ""
+	if cu.Email != nil {
+		email = strings.ToLower(strings.TrimSpace(*cu.Email))
+	}
+	if cu.UserID == nil && email == "" {
+		v.Add("email", "כדי לפתוח ללקוח חשבון יש להזין אימייל (חשבון Google) בפרטי הלקוח")
+	}
+	if err := v.OrNil(); err != nil {
+		return CoordinatorResult{}, err
+	}
+
+	var res CoordinatorResult
+	err = s.store.InTx(ctx, func(tx *store.Store) error {
+		var u domain.User
+		if cu.UserID != nil {
+			if u, err = tx.UserByID(ctx, *cu.UserID); err != nil {
+				return err
+			}
+		} else if u, err = tx.UserByEmail(ctx, email); err == nil {
+			if u.Role != domain.RoleUser {
+				v.Add("email", "האימייל של הלקוח שייך למשתמש צוות – יש לעדכן אימייל אחר ללקוח")
+				return v
+			}
+		} else if errors.Is(err, domain.ErrNotFound) {
+			name := cu.Name
+			if cu.ContactName != nil && strings.TrimSpace(*cu.ContactName) != "" {
+				name = strings.TrimSpace(*cu.ContactName)
+			}
+			if u, err = tx.CreateUser(ctx, store.UserInput{Email: email, FullName: name, Phone: cu.Phone, Role: domain.RoleUser}); err != nil {
+				return err
+			}
+		} else {
+			return err
+		}
+		if cu.UserID == nil {
+			if err := tx.SetCustomerUser(ctx, cu.ID, u.ID); err != nil {
+				return err
+			}
+		}
+		res.User = u
+		c, err := newContract(ctx, tx, actor, u.ID, in.Method, in.Title, in.Body)
+		res.Contract = &c
+		return err
+	})
+	if err != nil {
+		return CoordinatorResult{}, err
+	}
+	s.audit(ctx, actor, "customer", cu.ID, "send_contract", map[string]any{"user": res.User.Email, "method": in.Method})
+	s.emit(ctx, EvUserChanged, map[string]any{"id": res.User.ID}, realtime.TopicStaff)
+	if res.Contract.Method == "digital" {
+		if err := s.sendContract(ctx, *res.Contract, res.User); err != nil {
+			return res, err
+		}
+		res.SignURL, res.SentVia = s.signURL(res.Contract.Token), s.deliveryChannels()
+	}
+	return res, nil
 }

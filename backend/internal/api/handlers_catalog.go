@@ -155,7 +155,7 @@ func (s *Server) saveActivity(w http.ResponseWriter, r *http.Request) {
 // ── Customers ────────────────────────────────────────────────
 
 type customerBody struct {
-	ID          uuid.UUID `json:"-"`
+	ID          uuid.UUID `json:"id"` // ignored on input: saveHandler sets it from the path
 	Name        string    `json:"name"`
 	Kind        string    `json:"kind"`
 	ContactName *string   `json:"contactName"`

@@ -1,15 +1,17 @@
 import clsx from 'clsx'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Building, Mail, Phone, Plus, Search, Trash2, UserRound, Users } from 'lucide-react'
+import { Building, FileSignature, Mail, Phone, Plus, Search, Trash2, UserRound, Users } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import { ContractDialog, SendContractDialog } from '@/components/Contracts'
 import { toast } from '@/components/toast'
 import { Badge, Button, Confirm, Drawer, Empty, Field, Input, Modal, PageHeader, PageLoader, Select, Tabs, Textarea } from '@/components/ui'
 import { api, ApiError, errorMessage } from '@/lib/api'
+import { useCan } from '@/lib/auth'
 import { dateShort, money, timeRange } from '@/lib/format'
-import { bookingStatusLabel, customerKindLabel, paymentMethodLabel } from '@/lib/labels'
+import { bookingStatusLabel, contractStatusLabel, customerKindLabel, paymentMethodLabel } from '@/lib/labels'
 import { useCustomers } from '@/lib/queries'
-import type { Booking, Customer, Payment } from '@/lib/types'
+import type { Booking, Contract, Customer, Payment } from '@/lib/types'
 
 export function CustomersPage() {
   const [params, setParams] = useSearchParams()
@@ -240,6 +242,7 @@ function CustomerDrawer({ id, onClose, onEdit }: { id: string | null; onClose: (
             <Mini label="יתרה" value={money(bal)} danger={bal > 0} />
           </div>
           {c.notes && <p className="rounded-xl bg-subtle p-3 text-sm">{c.notes}</p>}
+          <CustomerContracts customer={c} />
           <section>
             <h4 className="mb-2 text-sm font-semibold">הזמנות</h4>
             <ul className="divide-y divide-line rounded-xl border border-line">
@@ -288,5 +291,46 @@ function Mini({ label, value, danger }: { label: string; value: string; danger?:
       <p className="text-[11px] text-muted">{label}</p>
       <p className={clsx('font-bold tabular-nums', danger && 'text-danger')}>{value}</p>
     </div>
+  )
+}
+
+/** Contracts of a customer: send one by link (signs and gets a portal account) or record a signed scan. */
+function CustomerContracts({ customer }: { customer: Customer }) {
+  const can = useCan()
+  const manage = can('coordinators:manage')
+  const [sending, setSending] = useState(false)
+  const [viewing, setViewing] = useState<Contract | null>(null)
+  const { data = [] } = useQuery({ queryKey: ['contracts'], queryFn: () => api.get<Contract[]>('/contracts'), enabled: manage && !!customer.userId })
+  if (!manage) return null
+  const mine = customer.userId ? data.filter((x) => x.userId === customer.userId) : []
+  return (
+    <section>
+      <h4 className="mb-2 flex items-center gap-1.5 text-sm font-semibold">
+        <FileSignature className="h-4 w-4 text-muted" /> חוזים
+      </h4>
+      {mine.length > 0 && (
+        <ul className="mb-2 divide-y divide-line rounded-xl border border-line">
+          {mine.map((x) => (
+            <li key={x.id}>
+              <button className="flex min-h-12 w-full items-center justify-between gap-2 px-3 py-2 text-start text-sm hover:bg-subtle" onClick={() => setViewing(x)}>
+                <span className="min-w-0">
+                  <span className="block truncate font-medium">{x.title}</span>
+                  <span className="block text-xs text-muted">
+                    {x.method === 'digital' ? 'חתימה דיגיטלית' : 'סריקה'} · {dateShort(x.createdAt)}
+                  </span>
+                </span>
+                <Badge tone={x.status === 'signed' ? 'green' : x.status === 'pending' ? 'amber' : 'gray'}>{contractStatusLabel[x.status]}</Badge>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <Button variant="secondary" className="w-full" icon={<FileSignature className="h-4 w-4" />} onClick={() => setSending(true)}>
+        שליחת חוזה לחתימה / סריקת חוזה
+      </Button>
+      {mine.length === 0 && <p className="mt-1.5 text-xs text-muted">הלקוח יחתום מהטלפון בקישור, ואחרי החתימה ייפתח לו חשבון במערכת. אפשר גם לצלם חוזה חתום על נייר.</p>}
+      <SendContractDialog target={sending ? { kind: 'customer', customer } : null} onClose={() => setSending(false)} />
+      <ContractDialog contract={viewing} onClose={() => setViewing(null)} />
+    </section>
   )
 }

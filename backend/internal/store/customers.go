@@ -90,3 +90,12 @@ func (s *Store) DeleteCustomer(ctx context.Context, id uuid.UUID) error {
 	}
 	return mapErr(err)
 }
+
+// SetCustomerUser links a customer to the portal account that acts for it.
+func (s *Store) SetCustomerUser(ctx context.Context, id, userID uuid.UUID) error {
+	tag, err := s.q.Exec(ctx, `UPDATE customers SET user_id = $2, updated_at = now() WHERE id = $1`, id, userID)
+	if err == nil && tag.RowsAffected() == 0 {
+		return domain.ErrNotFound
+	}
+	return mapErr(err)
+}

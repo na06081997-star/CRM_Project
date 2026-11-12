@@ -1,7 +1,7 @@
 import clsx from 'clsx'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { addDays, isToday, isTomorrow, startOfDay } from 'date-fns'
-import { BellRing, Check, CheckCircle2, Clock, DoorOpen, LayoutDashboard, PartyPopper, Phone, Play, RotateCcw, UserRound } from 'lucide-react'
+import { BellRing, Camera, Check, CheckCircle2, Clock, DoorOpen, LayoutDashboard, PartyPopper, Phone, Play, RotateCcw, UserRound } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { SimpleHeader } from '@/components/layout/SimpleHeader'
@@ -143,14 +143,12 @@ export function StaffPage() {
                             )}
                           </div>
                         )}
-                        {t.reportedBy && (
-                          <div className="mt-2">
-                            <PhotoGallery entity="task" entityId={t.id} />
-                          </div>
-                        )}
+                        <div className="mt-2">
+                          <PhotoGallery entity="task" entityId={t.id} title="תמונות – מה צריך לעשות" />
+                        </div>
                         {t.status === 'done' && (
                           <div className="mt-2">
-                            <PhotoGallery entity="task_done" entityId={t.id} />
+                            <PhotoGallery entity="task_done" entityId={t.id} title={proofLabel(t.kind)} />
                           </div>
                         )}
                         {t.status === 'done' && t.completedAt && <p className="mt-2 text-xs text-ok">בוצע {relative(t.completedAt)}</p>}
@@ -195,10 +193,12 @@ export function StaffPage() {
         }
       >
         <p className="mb-3 font-medium">{finishing?.title}</p>
-        <div className="mb-4">
-          <span className="label">{proofLabel(finishing?.kind)}</span>
-          <PhotoPicker files={photos} onChange={setPhotos} label="צילום" />
-          <p className="mt-1 text-xs text-muted">התמונה נשמרת במשימה ומוצגת למנהל{finishing?.reporterName ? ' ולפונה' : ''}.</p>
+        <div className="mb-4 rounded-xl border border-line p-3">
+          <p className="mb-2 flex items-center gap-2 font-semibold">
+            <Camera className="h-5 w-5 text-brand" /> {proofLabel(finishing?.kind)}
+          </p>
+          <PhotoPicker files={photos} onChange={setPhotos} max={4} />
+          <p className="mt-2 text-xs text-muted">התמונה נשמרת במשימה ומוצגת למנהל{finishing?.reporterName ? ' ולפונה' : ''}.</p>
         </div>
         <Textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="הערה למנהל (לא חובה) – לדוגמה: חסר נייר טואלט, נורה נוספת דורשת החלפה…" rows={3} />
       </Modal>

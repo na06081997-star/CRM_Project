@@ -112,6 +112,7 @@ func (s *Server) Routes() http.Handler {
 				r.Get("/{id}", s.getCustomer)
 				r.Put("/{id}", s.saveCustomer)
 				r.Delete("/{id}", s.deleteCustomer)
+				r.Post("/{id}/contract", s.customerContract)
 			})
 			r.Route("/payments", func(r chi.Router) {
 				r.Get("/", s.listPayments)

@@ -406,3 +406,54 @@ func TestBillingFilters(t *testing.T) {
 		t.Fatalf("coordinators do not see billing: %v", err)
 	}
 }
+
+func TestCustomerContractOpensPortalAccount(t *testing.T) {
+	svc, st := setup(t)
+	svc.files = &memFiles{objects: map[string][]byte{}}
+	svc.cfg.CORSOrigins = []string{"https://maaleramot.example"}
+	ctx := context.Background()
+	admin := actor(t, st, "maya@matnas.local")
+
+	noMail, err := st.CreateCustomer(ctx, store.CustomerInput{Name: "משפחת לוי", Kind: "private"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	in := CustomerContractInput{Method: "digital", Title: "הסכם שכירות", Body: "נוסח"}
+	if _, err := svc.CustomerContract(ctx, admin, noMail.ID, in); err == nil {
+		t.Fatal("a customer without e-mail cannot get an account")
+	}
+
+	mail, phone, contact := "levi@example.com", "050-7654321", "רונית לוי"
+	cu, err := st.CreateCustomer(ctx, store.CustomerInput{Name: "משפחת לוי", Kind: "private", Email: &mail, Phone: &phone, ContactName: &contact})
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := svc.CustomerContract(ctx, admin, cu.ID, in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.User.Role != domain.RoleUser || res.User.IsActive || res.User.FullName != contact || res.SignURL == "" {
+		t.Fatalf("customer account must wait for the signature: %+v", res)
+	}
+	linked, _ := st.CustomerByID(ctx, cu.ID)
+	if linked.UserID == nil || *linked.UserID != res.User.ID {
+		t.Fatal("customer must be linked to the new account")
+	}
+	token := strings.TrimPrefix(res.SignURL, "https://maaleramot.example/sign/")
+	if _, err := svc.SignContract(ctx, token, SignInput{Name: contact, Agree: true, Signature: signaturePNG(t)}, ""); err != nil {
+		t.Fatal(err)
+	}
+	if u, _ := st.UserByID(ctx, res.User.ID); !u.IsActive {
+		t.Fatal("signing must open the customer's account")
+	}
+	// A second contract reuses the same account.
+	again, err := svc.CustomerContract(ctx, admin, cu.ID, CustomerContractInput{Method: "scan", Title: "נספח", Body: "נוסח"})
+	if err != nil || again.User.ID != res.User.ID {
+		t.Fatalf("second contract: %+v %v", again, err)
+	}
+	staffMail := "maya@matnas.local"
+	staffCu, _ := st.CreateCustomer(ctx, store.CustomerInput{Name: "x", Kind: "private", Email: &staffMail})
+	if _, err := svc.CustomerContract(ctx, admin, staffCu.ID, in); err == nil {
+		t.Fatal("a customer e-mail owned by staff must be refused")
+	}
+}
