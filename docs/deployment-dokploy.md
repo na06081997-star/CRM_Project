@@ -31,7 +31,9 @@ Domain: `kehilaplus.com` (DNS at Hostinger). Each client gets a short slug (`maa
 
 The Dokploy panel is `panel.kehilaplus.com`.
 
-Flow: work lands on `develop` → deploy **development** and check it → merge `develop` into `main` → deploy **production**. A `demo/<client>` branch is a frozen version shown to that client; update it only on purpose.
+Flow: work lands on `develop` → deploy **development** and check it → fast-forward `demo/<client>` to `develop` and deploy **demo** (demo and development always run the same code; only the data and login differ) → once validated, merge `develop` into `main` → deploy **production**.
+
+A demo database is only seeded when empty, so demo rows added by a newer seed have to be inserted into an existing demo database by hand.
 
 The code is the same for every client; what differs lives in each environment's variables: `DOMAIN`, `CORS_ORIGINS`, `ORG_*` (name, logo, color), secrets and databases.
 
