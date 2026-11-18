@@ -2,7 +2,7 @@ import type { BookingStatus, BookingType, PaymentMethod, RequestStatus, Role, Ta
 
 export const roleLabel: Record<Role, string> = {
   super_admin: 'מנהל תפעול',
-  admin: 'מנהל/ת מתנ״ס',
+  admin: 'מנהל/ת מינהל',
   coordinator: 'רכז/ת',
   staff: 'צוות תפעול',
   user: 'משתמש/ת פורטל',
