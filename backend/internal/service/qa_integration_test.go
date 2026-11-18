@@ -62,7 +62,7 @@ func roomNamed(t *testing.T, st *store.Store, name string) domain.Room {
 func TestCancelReleasesBufferAndTasks(t *testing.T) {
 	svc, st := setup(t)
 	ctx := context.Background()
-	admin := actor(t, st, "maya@matnas.local")
+	admin := actor(t, st, "shiri@matnas.local")
 	cleaner := actor(t, st, "avi@matnas.local")
 	room := hall(t, st) // 30 min buffer
 	start := localAt(svc, 100, 10)
@@ -100,9 +100,9 @@ func TestCancelReleasesBufferAndTasks(t *testing.T) {
 func TestResolvedCancellationCancelsTasks(t *testing.T) {
 	svc, st := setup(t)
 	ctx := context.Background()
-	admin := actor(t, st, "maya@matnas.local")
-	yoav := actor(t, st, "yoav@matnas.local")
-	room := roomNamed(t, st, "חדר חוגים")
+	admin := actor(t, st, "shiri@matnas.local")
+	yoav := actor(t, st, "yosef@matnas.local")
+	room := roomNamed(t, st, "חדר 11 יצירה")
 	start := localAt(svc, 101, 16)
 	res, err := svc.CreateBooking(ctx, admin, BookingInput{RoomID: room.ID, Title: "חוג", Type: domain.BookingActivity,
 		CoordinatorID: &yoav.User.ID, StartsAt: start, EndsAt: start.Add(time.Hour)})
@@ -128,9 +128,9 @@ func TestResolvedCancellationCancelsTasks(t *testing.T) {
 func TestCoordinatorCannotRequestPaidRental(t *testing.T) {
 	svc, st := setup(t)
 	ctx := context.Background()
-	yoav := actor(t, st, "yoav@matnas.local")
+	yoav := actor(t, st, "yosef@matnas.local")
 	dana := actor(t, st, "dana@example.com")
-	room := roomNamed(t, st, "חדר ישיבות 2")
+	room := roomNamed(t, st, "חדר תפירה")
 	start := localAt(svc, 102, 10)
 	in := RequestInput{RoomID: room.ID, Title: "ישיבה", StartsAt: start, EndsAt: start.Add(time.Hour), Phone: "050-2222222", Route: "rental"}
 
@@ -153,9 +153,9 @@ func TestCoordinatorCannotRequestPaidRental(t *testing.T) {
 func TestRecurringRequestApproval(t *testing.T) {
 	svc, st := setup(t)
 	ctx := context.Background()
-	admin := actor(t, st, "maya@matnas.local")
-	yoav := actor(t, st, "yoav@matnas.local")
-	room := roomNamed(t, st, "חדר חוגים")
+	admin := actor(t, st, "shiri@matnas.local")
+	yoav := actor(t, st, "yosef@matnas.local")
+	room := roomNamed(t, st, "חדר 11 יצירה")
 	first := localAt(svc, 110, 17)
 
 	// Someone already holds the third week.
@@ -204,8 +204,8 @@ func TestRecurringRequestApproval(t *testing.T) {
 func TestCheckSlotSuggestsAlternatives(t *testing.T) {
 	svc, st := setup(t)
 	ctx := context.Background()
-	admin := actor(t, st, "maya@matnas.local")
-	yoav := actor(t, st, "yoav@matnas.local")
+	admin := actor(t, st, "shiri@matnas.local")
+	yoav := actor(t, st, "yosef@matnas.local")
 	room := hall(t, st)
 	start := localAt(svc, 103, 12)
 	if _, err := svc.CreateBooking(ctx, admin, BookingInput{RoomID: room.ID, Title: "סודי", Type: domain.BookingRental, StartsAt: start, EndsAt: start.Add(2 * time.Hour)}); err != nil {
@@ -232,11 +232,11 @@ func TestCheckSlotSuggestsAlternatives(t *testing.T) {
 func TestTicketFlow(t *testing.T) {
 	svc, st := setup(t)
 	ctx := context.Background()
-	admin := actor(t, st, "maya@matnas.local")
-	yoav := actor(t, st, "yoav@matnas.local")
+	admin := actor(t, st, "shiri@matnas.local")
+	yoav := actor(t, st, "yosef@matnas.local")
 	samir := actor(t, st, "samir@matnas.local")
 	avi := actor(t, st, "avi@matnas.local")
-	room := roomNamed(t, st, "חדר ישיבות 1")
+	room := roomNamed(t, st, "חדר ישיבות")
 
 	tk, err := svc.ReportIssue(ctx, yoav, IssueInput{Kind: "repair", Title: "כיסא שבור", Description: "רגל סדוקה", RoomID: &room.ID})
 	if err != nil {
@@ -310,8 +310,8 @@ func TestCoordinatorContractOnboarding(t *testing.T) {
 	svc.files = &memFiles{objects: map[string][]byte{}}
 	svc.cfg.CORSOrigins = []string{"https://maaleramot.example"}
 	ctx := context.Background()
-	admin := actor(t, st, "maya@matnas.local")
-	yoav := actor(t, st, "yoav@matnas.local")
+	admin := actor(t, st, "shiri@matnas.local")
+	yoav := actor(t, st, "yosef@matnas.local")
 
 	in := CoordinatorInput{FullName: "נועה רכזת", Email: "noa@example.com", Phone: "050-1234567", Contract: "digital", Title: "הסכם רכז/ת", Body: "נוסח החוזה"}
 	if _, err := svc.CreateCoordinator(ctx, yoav, in); !errors.Is(err, domain.ErrForbidden) {
@@ -380,8 +380,8 @@ func TestCoordinatorContractOnboarding(t *testing.T) {
 func TestBillingFilters(t *testing.T) {
 	svc, st := setup(t)
 	ctx := context.Background()
-	admin := actor(t, st, "maya@matnas.local")
-	yoav := actor(t, st, "yoav@matnas.local")
+	admin := actor(t, st, "shiri@matnas.local")
+	yoav := actor(t, st, "yosef@matnas.local")
 	for _, p := range []string{"paid", "partial", "unpaid", "open"} {
 		list, err := svc.Billing(ctx, admin, store.BookingFilter{Payment: p})
 		if err != nil {
@@ -412,7 +412,7 @@ func TestCustomerContractOpensPortalAccount(t *testing.T) {
 	svc.files = &memFiles{objects: map[string][]byte{}}
 	svc.cfg.CORSOrigins = []string{"https://maaleramot.example"}
 	ctx := context.Background()
-	admin := actor(t, st, "maya@matnas.local")
+	admin := actor(t, st, "shiri@matnas.local")
 
 	noMail, err := st.CreateCustomer(ctx, store.CustomerInput{Name: "משפחת לוי", Kind: "private"})
 	if err != nil {
@@ -451,7 +451,7 @@ func TestCustomerContractOpensPortalAccount(t *testing.T) {
 	if err != nil || again.User.ID != res.User.ID {
 		t.Fatalf("second contract: %+v %v", again, err)
 	}
-	staffMail := "maya@matnas.local"
+	staffMail := "shiri@matnas.local"
 	staffCu, _ := st.CreateCustomer(ctx, store.CustomerInput{Name: "x", Kind: "private", Email: &staffMail})
 	if _, err := svc.CustomerContract(ctx, admin, staffCu.ID, in); err == nil {
 		t.Fatal("a customer e-mail owned by staff must be refused")

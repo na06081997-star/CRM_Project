@@ -50,7 +50,7 @@ export const toLocalInput = (v: string | Date) => fmt(v, "yyyy-MM-dd'T'HH:mm")
 export const fromLocalInput = (v: string) => new Date(v).toISOString()
 
 export function initials(name: string) {
-  // Letters only, so "מנהל־על (בעלים)" gives "מב" rather than "מ(".
+  // Letters only, so "שירי (מנהלת)" gives "שמ" rather than "ש(".
   const parts = name.match(/\p{L}+/gu) ?? []
   return (parts[0]?.[0] || '') + (parts[1]?.[0] || '')
 }

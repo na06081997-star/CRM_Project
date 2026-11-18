@@ -104,11 +104,15 @@ func (sd *seeder) run(today time.Time) {
 	}
 
 	// ── People ──
-	sd.user("owner@matnas.local", "מנהל־על (בעלים)", "050-0000000", domain.RoleSuperAdmin, "")
-	admin := sd.user("maya@matnas.local", "מאיה שגיא", "050-1111111", domain.RoleAdmin, "")
-	yoav := sd.user("yoav@matnas.local", "יואב כהן", "050-2222222", domain.RoleCoordinator, "")
-	rotem := sd.user("rotem@matnas.local", "רותם אזולאי", "052-3333333", domain.RoleCoordinator, "")
-	amit := sd.user("amit@matnas.local", "עמית ברק", "054-4444444", domain.RoleCoordinator, "")
+	sd.user("matanya@matnas.local", "מתניה כהן", "050-0000000", domain.RoleSuperAdmin, "")
+	admin := sd.user("shiri@matnas.local", "שירי קאופמן", "050-1111111", domain.RoleAdmin, "")
+	yosef := sd.user("yosef@matnas.local", "יוסף ברסי", "050-2222222", domain.RoleCoordinator, "")
+	michael := sd.user("michael@matnas.local", "מיכאל קרפוך", "052-3333333", domain.RoleCoordinator, "")
+	hana := sd.user("hana@matnas.local", "חנה שלזינגר", "054-4444444", domain.RoleCoordinator, "")
+	sarahS := sd.user("sarah.s@matnas.local", "שרה שטיין", "050-3434343", domain.RoleCoordinator, "")
+	leah := sd.user("leah@matnas.local", "לאה שלזינגר", "052-5656565", domain.RoleCoordinator, "")
+	rachel := sd.user("rachel@matnas.local", "רחל ברנדמן", "054-7878787", domain.RoleCoordinator, "")
+	sarahE := sd.user("sarah.e@matnas.local", "שרה אלמליח", "053-9090909", domain.RoleCoordinator, "")
 	avi := sd.user("avi@matnas.local", "אבי לוי", "053-5555555", domain.RoleStaff, "cleaner")
 	samir := sd.user("samir@matnas.local", "סמיר חסן", "058-6666666", domain.RoleStaff, "technician")
 	dana := sd.user("dana@example.com", "דנה מזרחי", "050-7777777", domain.RoleUser, "")
@@ -119,10 +123,6 @@ func (sd *seeder) run(today time.Time) {
 
 	// ── Facilities ──
 	main, err := tx.CreateBuilding(ctx, domain.Building{Name: "המרכז הקהילתי מעלה רמות", Address: "רמות, ירושלים", OpensAt: "07:00", ClosesAt: "23:00"})
-	if sd.err = err; err != nil {
-		return
-	}
-	music, err := tx.CreateBuilding(ctx, domain.Building{Name: "בית המוזיקה", Address: "רחוב הזמר 3", OpensAt: "08:00", ClosesAt: "22:00"})
 	if sd.err = err; err != nil {
 		return
 	}
@@ -139,51 +139,62 @@ func (sd *seeder) run(today time.Time) {
 		}
 	}
 
-	hall := sd.room(main.ID, "אולם אירועים", "event_hall", 250, "#7c3aed", 450, 3, 30, 1, "sound", "lighting", "stage", "catering", "projector")
-	sports := sd.room(main.ID, "אולם ספורט", "sports_hall", 120, "#0f766e", 220, 1, 15, 2, "sound")
-	meet1 := sd.room(main.ID, "חדר ישיבות 1", "meeting_room", 20, "#0369a1", 90, 1, 10, 3, "projector", "catering")
-	meet2 := sd.room(main.ID, "חדר ישיבות 2", "meeting_room", 12, "#0891b2", 70, 1, 10, 4, "projector")
-	studio := sd.room(main.ID, "סטודיו מחול", "studio", 30, "#db2777", 150, 1, 15, 5, "sound")
-	classroom := sd.room(main.ID, "חדר חוגים", "classroom", 25, "#ca8a04", 100, 1, 10, 6, "projector")
-	musicA := sd.room(music.ID, "חדר מוזיקה א׳", "music_room", 8, "#ea580c", 80, 1, 10, 7, "sound")
-	musicB := sd.room(music.ID, "חדר מוזיקה ב׳", "music_room", 6, "#65a30d", 70, 1, 10, 8)
-	rec := sd.room(music.ID, "חדר הקלטות", "studio", 5, "#be123c", 180, 2, 15, 9, "sound")
+	meeting := sd.room(main.ID, "חדר ישיבות", "meeting_room", 20, "#0369a1", 90, 1, 10, 1, "projector", "catering")
+	kitchen := sd.room(main.ID, "מטבח צמיד", "other", 15, "#ea580c", 120, 1, 15, 2, "catering")
+	craft := sd.room(main.ID, "חדר 11 יצירה", "classroom", 20, "#ca8a04", 100, 1, 10, 3, "projector")
+	sewing := sd.room(main.ID, "חדר תפירה", "classroom", 12, "#db2777", 80, 1, 10, 4)
+	lobby := sd.room(main.ID, "לובי", "event_hall", 120, "#7c3aed", 350, 2, 30, 5, "sound", "lighting", "stage", "catering", "chairs")
+	jimbori := sd.room(main.ID, "ג׳מבורי", "studio", 25, "#16a34a", 150, 1, 15, 6, "sound")
 	if sd.err != nil {
 		return
 	}
 
 	// ── Customers ──
-	yadbeyad := sd.customer("עמותת יד ביד", "organization", "שירה בן דוד", "03-5550101", "office@yadbeyad.org.il", nil)
-	school := sd.customer("בית ספר אלון", "organization", "מנהלת: אורנה", "03-5550202", "alon@school.org.il", nil)
+	yadbeyad := sd.customer("עמותת יד ביד", "organization", "שירה בן דוד", "02-5550101", "office@yadbeyad.org.il", nil)
+	school := sd.customer("בית ספר אלון", "organization", "מנהלת: אורנה", "02-5550202", "alon@school.org.il", nil)
 	golan := sd.customer("משפחת גולן", "private", "רונית גולן", "050-9990000", "ronit.golan@example.com", nil)
 	danaC := sd.customer("דנה מזרחי", "private", "דנה מזרחי", "050-7777777", "dana@example.com", &dana.ID)
-	internal := sd.customer("הנהלת המינהל", "internal", "מאיה שגיא", "050-1111111", "maya@matnas.local", nil)
+	internal := sd.customer("הנהלת המינהל", "internal", "שירי קאופמן", "050-1111111", "shiri@matnas.local", nil)
 	if sd.err != nil {
 		return
 	}
 
-	// ── Activities (weekly programs) ──
+	// ── Activities (weekly programs, one area per coordinator) ──
 	type program struct {
-		name   string
-		coord  domain.User
-		room   domain.Room
-		color  string
-		days   []time.Weekday
-		sh, sm int
-		eh, em int
+		name     string
+		audience string
+		coord    domain.User
+		room     domain.Room
+		color    string
+		days     []time.Weekday
+		sh, sm   int
+		eh, em   int
 	}
 	programs := []program{
-		{"חוג כדורסל", yoav, sports, "#0f766e", []time.Weekday{0, 2}, 18, 0, 19, 30},
-		{"בלט לגיל הרך", rotem, studio, "#db2777", []time.Weekday{1, 3}, 16, 0, 17, 0},
-		{"היפ-הופ נוער", rotem, studio, "#9333ea", []time.Weekday{0, 4}, 17, 15, 18, 30},
-		{"יוגה בוקר", amit, studio, "#16a34a", []time.Weekday{5}, 9, 0, 10, 30},
-		{"שיעור גיטרה פרטי", amit, musicA, "#ea580c", []time.Weekday{2}, 17, 0, 18, 0},
-		{"מקהלת גיל הזהב", amit, musicB, "#65a30d", []time.Weekday{1}, 10, 0, 11, 30},
-		{"קרמיקה למבוגרים", yoav, classroom, "#ca8a04", []time.Weekday{3}, 19, 0, 21, 0},
+		// קליטה
+		{"אולפן עברית לעולים", "עולים חדשים", yosef, craft, "#0284c7", []time.Weekday{0, 2}, 9, 0, 11, 0},
+		{"מפגש עולים חדשים", "עולים חדשים", yosef, meeting, "#0369a1", []time.Weekday{3}, 18, 0, 19, 30},
+		// נוער
+		{"מועדון נוער", "נוער", michael, lobby, "#9333ea", []time.Weekday{0, 2}, 18, 30, 21, 0},
+		// צמיד
+		{"סדנת בישול – צמיד", "משפחות צמיד", hana, kitchen, "#ea580c", []time.Weekday{1, 3}, 16, 0, 18, 0},
+		{"מפגש הורים – צמיד", "משפחות צמיד", hana, meeting, "#c2410c", []time.Weekday{4}, 17, 0, 18, 30},
+		// ספורט
+		{"פילאטיס לנשים", "נשים", sarahS, jimbori, "#0f766e", []time.Weekday{0, 2}, 20, 0, 21, 0},
+		{"התעמלות קרקע לילדים", "ילדים", sarahS, jimbori, "#14b8a6", []time.Weekday{1, 3}, 16, 30, 17, 30},
+		// גיל הרך
+		{"ג׳מבורי הורה וילד", "גיל הרך", leah, jimbori, "#16a34a", []time.Weekday{0, 2, 4}, 10, 0, 11, 30},
+		{"שעת סיפור לפעוטות", "גיל הרך", leah, craft, "#65a30d", []time.Weekday{3}, 16, 30, 17, 30},
+		// עבודה קהילתית
+		{"פורום תושבים", "תושבי השכונה", rachel, meeting, "#475569", []time.Weekday{1}, 19, 30, 21, 0},
+		{"מפגש גיל הזהב", "גיל הזהב", rachel, sewing, "#a16207", []time.Weekday{2}, 10, 0, 12, 0},
+		// תרבות
+		{"חוג קרמיקה", "מבוגרים", sarahE, craft, "#ca8a04", []time.Weekday{1, 4}, 18, 0, 20, 0},
+		{"חוג תפירה למתחילות", "מבוגרים", sarahE, sewing, "#db2777", []time.Weekday{0, 3}, 17, 0, 19, 0},
 	}
 	for _, p := range programs {
 		act, err := tx.SaveActivity(ctx, domain.Activity{Name: p.name, CoordinatorID: &p.coord.ID, DefaultRoomID: &p.room.ID,
-			Color: p.color, IsActive: true, Audience: "קהל רחב"})
+			Color: p.color, IsActive: true, Audience: p.audience})
 		if sd.err = err; err != nil {
 			return
 		}
@@ -204,44 +215,45 @@ func (sd *seeder) run(today time.Time) {
 	series := uuid.New()
 	for week := -3; week <= 6; week++ {
 		day := sunday.AddDate(0, 0, week*7)
-		sd.booking(domain.Booking{RoomID: meet1.ID, Title: "ישיבת צוות שבועית", Type: domain.BookingInternal, Status: domain.StatusConfirmed,
-			StartsAt: at(day, 8, 30), EndsAt: at(day, 10, 0), BufferMinutes: 10, CustomerID: &internal.ID, SeriesID: &series, CreatedBy: &admin.ID})
+		sd.booking(domain.Booking{RoomID: meeting.ID, Title: "ישיבת צוות שבועית", Type: domain.BookingInternal, Status: domain.StatusConfirmed,
+			StartsAt: at(day, 8, 0), EndsAt: at(day, 9, 30), BufferMinutes: 10, CustomerID: &internal.ID, SeriesID: &series, CreatedBy: &admin.ID})
 	}
 
 	// ── One-off bookings this week & next ──
 	day := func(offset int) time.Time { return sunday.AddDate(0, 0, offset) }
-	fundraiser := sd.booking(domain.Booking{RoomID: hall.ID, Title: "ערב התרמה – עמותת יד ביד", Type: domain.BookingRental, Status: domain.StatusConfirmed,
-		StartsAt: at(day(3), 19, 0), EndsAt: at(day(3), 23, 0), BufferMinutes: 30, CustomerID: &yadbeyad.ID, Attendees: 180,
-		Equipment: []string{"sound", "lighting", "catering"}, Price: 2650, CreatedBy: &admin.ID, Notes: "כולל הקמת במה"})
-	sd.booking(domain.Booking{RoomID: hall.ID, Title: "כנס מתנדבים", Type: domain.BookingInternal, Status: domain.StatusConfirmed,
-		StartsAt: at(day(1), 10, 0), EndsAt: at(day(1), 13, 0), BufferMinutes: 30, CustomerID: &internal.ID, CoordinatorID: &yoav.ID, Attendees: 80, CreatedBy: &admin.ID})
-	barmitzva := sd.booking(domain.Booking{RoomID: hall.ID, Title: "בר מצווה – משפחת גולן", Type: domain.BookingRental, Status: domain.StatusConfirmed,
-		StartsAt: at(day(4), 18, 0), EndsAt: at(day(4), 23, 0), BufferMinutes: 30, CustomerID: &golan.ID, Attendees: 150,
-		Equipment: []string{"sound", "lighting"}, Price: 2900, CreatedBy: &admin.ID})
-	sd.booking(domain.Booking{RoomID: hall.ID, Title: "הרצאה: גינון עירוני", Type: domain.BookingActivity, Status: domain.StatusConfirmed,
-		StartsAt: at(day(2), 18, 0), EndsAt: at(day(2), 20, 0), BufferMinutes: 30, CoordinatorID: &rotem.ID, Attendees: 60, CreatedBy: &admin.ID})
-	sd.booking(domain.Booking{RoomID: classroom.ID, Title: "ערב קריוקי לנוער", Type: domain.BookingInternal, Status: domain.StatusConfirmed,
-		StartsAt: at(day(1), 19, 30), EndsAt: at(day(1), 21, 30), BufferMinutes: 10, CoordinatorID: &amit.ID, Attendees: 25, CreatedBy: &admin.ID})
-	schoolB := sd.booking(domain.Booking{RoomID: sports.ID, Title: "טורניר כדורעף – בית ספר אלון", Type: domain.BookingRental, Status: domain.StatusConfirmed,
-		StartsAt: at(day(2), 9, 0), EndsAt: at(day(2), 13, 0), BufferMinutes: 15, CustomerID: &school.ID, Attendees: 90, Price: 880, CreatedBy: &admin.ID})
-	sd.booking(domain.Booking{RoomID: sports.ID, Title: "תחזוקת רצפת פרקט", Type: domain.BookingMaintenance, Status: domain.StatusConfirmed,
-		StartsAt: at(day(3), 7, 0), EndsAt: at(day(3), 12, 0), CreatedBy: &admin.ID, InternalNotes: "קבלן: פרקט הצפון"})
-	sd.booking(domain.Booking{RoomID: meet2.ID, Title: "סדנת כתיבה יוצרת", Type: domain.BookingActivity, Status: domain.StatusPending,
-		StartsAt: at(day(2), 17, 0), EndsAt: at(day(2), 19, 0), BufferMinutes: 10, CoordinatorID: &rotem.ID, Attendees: 10, CreatedBy: &admin.ID})
-	sd.booking(domain.Booking{RoomID: meet1.ID, Title: "פגישת ועד הורים", Type: domain.BookingInternal, Status: domain.StatusConfirmed,
-		StartsAt: at(day(1), 20, 0), EndsAt: at(day(1), 21, 30), BufferMinutes: 10, CustomerID: &internal.ID, CreatedBy: &admin.ID})
-	sd.booking(domain.Booking{RoomID: rec.ID, Title: "הקלטת אלבום – להקת 'גלים'", Type: domain.BookingRental, Status: domain.StatusConfirmed,
-		StartsAt: at(day(4), 10, 0), EndsAt: at(day(4), 16, 0), BufferMinutes: 15, CustomerID: &danaC.ID, Price: 1080, CreatedBy: &admin.ID})
-	sd.booking(domain.Booking{RoomID: hall.ID, Title: "יריד קהילתי", Type: domain.BookingActivity, Status: domain.StatusConfirmed,
-		StartsAt: at(day(9), 16, 0), EndsAt: at(day(9), 21, 0), BufferMinutes: 30, CoordinatorID: &yoav.ID, Attendees: 220, CreatedBy: &admin.ID})
-	sd.booking(domain.Booking{RoomID: musicA.ID, Title: "חזרות להקה", Type: domain.BookingRental, Status: domain.StatusConfirmed,
-		StartsAt: at(day(0), 16, 0), EndsAt: at(day(0), 19, 0), BufferMinutes: 10, CustomerID: &danaC.ID, Price: 240, CreatedBy: &admin.ID})
+	fundraiser := sd.booking(domain.Booking{RoomID: lobby.ID, Title: "ערב התרמה – עמותת יד ביד", Type: domain.BookingRental, Status: domain.StatusConfirmed,
+		StartsAt: at(day(3), 19, 0), EndsAt: at(day(3), 23, 0), BufferMinutes: 30, CustomerID: &yadbeyad.ID, Attendees: 100,
+		Equipment: []string{"sound", "lighting", "catering"}, Price: 2250, CreatedBy: &admin.ID, Notes: "כולל הקמת במה"})
+	sd.booking(domain.Booking{RoomID: lobby.ID, Title: "כנס מתנדבים", Type: domain.BookingInternal, Status: domain.StatusConfirmed,
+		StartsAt: at(day(1), 10, 0), EndsAt: at(day(1), 13, 0), BufferMinutes: 30, CustomerID: &internal.ID, CoordinatorID: &rachel.ID, Attendees: 80, CreatedBy: &admin.ID})
+	barmitzva := sd.booking(domain.Booking{RoomID: lobby.ID, Title: "בר מצווה – משפחת גולן", Type: domain.BookingRental, Status: domain.StatusConfirmed,
+		StartsAt: at(day(4), 18, 0), EndsAt: at(day(4), 23, 0), BufferMinutes: 30, CustomerID: &golan.ID, Attendees: 110,
+		Equipment: []string{"sound", "lighting"}, Price: 2400, CreatedBy: &admin.ID})
+	sd.booking(domain.Booking{RoomID: lobby.ID, Title: "ערב תרבות: הרצאה על ירושלים", Type: domain.BookingActivity, Status: domain.StatusConfirmed,
+		StartsAt: at(day(1), 19, 0), EndsAt: at(day(1), 21, 0), BufferMinutes: 30, CoordinatorID: &sarahE.ID, Attendees: 60, CreatedBy: &admin.ID})
+	sd.booking(domain.Booking{RoomID: jimbori.ID, Title: "ערב קריוקי לנוער", Type: domain.BookingInternal, Status: domain.StatusConfirmed,
+		StartsAt: at(day(4), 19, 30), EndsAt: at(day(4), 21, 30), BufferMinutes: 15, CoordinatorID: &michael.ID, Attendees: 25, CreatedBy: &admin.ID})
+	schoolB := sd.booking(domain.Booking{RoomID: craft.ID, Title: "סדנת יצירה – בית ספר אלון", Type: domain.BookingRental, Status: domain.StatusConfirmed,
+		StartsAt: at(day(2), 12, 0), EndsAt: at(day(2), 14, 0), BufferMinutes: 10, CustomerID: &school.ID, Attendees: 20, Price: 800, CreatedBy: &admin.ID})
+	sd.booking(domain.Booking{RoomID: kitchen.ID, Title: "החלפת כיריים במטבח", Type: domain.BookingMaintenance, Status: domain.StatusConfirmed,
+		StartsAt: at(day(2), 7, 0), EndsAt: at(day(2), 12, 0), CreatedBy: &admin.ID, InternalNotes: "קבלן: מטבחי ירושלים"})
+	sd.booking(domain.Booking{RoomID: meeting.ID, Title: "סדנת כתיבה לעולים", Type: domain.BookingActivity, Status: domain.StatusPending,
+		StartsAt: at(day(2), 17, 0), EndsAt: at(day(2), 19, 0), BufferMinutes: 10, CoordinatorID: &yosef.ID, Attendees: 10, CreatedBy: &admin.ID})
+	sd.booking(domain.Booking{RoomID: meeting.ID, Title: "ישיבת ועד שכונה", Type: domain.BookingInternal, Status: domain.StatusConfirmed,
+		StartsAt: at(day(2), 20, 0), EndsAt: at(day(2), 21, 30), BufferMinutes: 10, CustomerID: &internal.ID, CoordinatorID: &rachel.ID, CreatedBy: &admin.ID})
+	sd.booking(domain.Booking{RoomID: jimbori.ID, Title: "יום הולדת 5 – דנה מזרחי", Type: domain.BookingRental, Status: domain.StatusConfirmed,
+		StartsAt: at(day(5), 10, 0), EndsAt: at(day(5), 13, 0), BufferMinutes: 15, CustomerID: &danaC.ID, Attendees: 25,
+		Equipment: []string{"sound"}, Price: 800, CreatedBy: &admin.ID})
+	sd.booking(domain.Booking{RoomID: lobby.ID, Title: "יריד קהילתי", Type: domain.BookingActivity, Status: domain.StatusConfirmed,
+		StartsAt: at(day(8), 16, 0), EndsAt: at(day(8), 21, 0), BufferMinutes: 30, CoordinatorID: &sarahE.ID, Attendees: 120, CreatedBy: &admin.ID})
+	sd.booking(domain.Booking{RoomID: sewing.ID, Title: "סדנת סריגה פרטית", Type: domain.BookingRental, Status: domain.StatusConfirmed,
+		StartsAt: at(day(0), 13, 0), EndsAt: at(day(0), 15, 0), BufferMinutes: 10, CustomerID: &danaC.ID, Price: 160, CreatedBy: &admin.ID})
 	// Something happening right now for the live signage.
 	now := time.Now().In(sd.loc)
 	if now.Hour() >= 7 && now.Hour() < 22 {
 		start := now.Truncate(30 * time.Minute).Add(-30 * time.Minute)
-		sd.booking(domain.Booking{RoomID: meet2.ID, Title: "סדנת מחשבים לגיל השלישי", Type: domain.BookingActivity, Status: domain.StatusConfirmed,
-			StartsAt: start, EndsAt: start.Add(2 * time.Hour), BufferMinutes: 10, CoordinatorID: &amit.ID, Attendees: 12, CreatedBy: &admin.ID})
+		sd.booking(domain.Booking{RoomID: meeting.ID, Title: "סדנת מחשבים לגיל השלישי", Type: domain.BookingActivity, Status: domain.StatusConfirmed,
+			StartsAt: start, EndsAt: start.Add(2 * time.Hour), BufferMinutes: 10, CoordinatorID: &rachel.ID, Attendees: 12, CreatedBy: &admin.ID})
 	}
 	if sd.err != nil {
 		return
@@ -250,8 +262,8 @@ func (sd *seeder) run(today time.Time) {
 	// ── Payments ──
 	for _, p := range []domain.Payment{
 		{BookingID: fundraiser.ID, Amount: 1000, Method: domain.PayBankTransfer, Reference: "העברה 88213", PaidAt: today.AddDate(0, 0, -5)},
-		{BookingID: barmitzva.ID, Amount: 1500, Method: domain.PayCheck, Reference: "צ׳ק 004512", PaidAt: today.AddDate(0, 0, -10)},
-		{BookingID: barmitzva.ID, Amount: 1400, Method: domain.PayCheck, Reference: "צ׳ק 004513", PaidAt: today.AddDate(0, 0, -2)},
+		{BookingID: barmitzva.ID, Amount: 1200, Method: domain.PayCheck, Reference: "צ׳ק 004512", PaidAt: today.AddDate(0, 0, -10)},
+		{BookingID: barmitzva.ID, Amount: 1200, Method: domain.PayCheck, Reference: "צ׳ק 004513", PaidAt: today.AddDate(0, 0, -2)},
 		{BookingID: schoolB.ID, Amount: 400, Method: domain.PayCash, PaidAt: today.AddDate(0, 0, -1)},
 	} {
 		if p.BookingID == uuid.Nil {
@@ -265,14 +277,14 @@ func (sd *seeder) run(today time.Time) {
 
 	// ── Portal requests ──
 	for _, r := range []domain.BookingRequest{
-		{UserID: dana.ID, CustomerID: &danaC.ID, RoomID: hall.ID, Title: "יום הולדת 40", EventKind: "אירוע פרטי",
-			StartsAt: at(day(11), 19, 0), EndsAt: at(day(11), 23, 0), Attendees: 100, Equipment: []string{"sound", "catering"}, Notes: "נשמח לסידור שולחנות עגולים", QuotedPrice: 2350},
-		{UserID: uri.ID, RoomID: meet1.ID, Title: "סדנת יזמות", EventKind: "סדנה",
-			StartsAt: at(day(8), 18, 0), EndsAt: at(day(8), 21, 0), Attendees: 18, Equipment: []string{"projector"}, QuotedPrice: 420},
-		{UserID: yoav.ID, RoomID: sports.ID, Title: "טורניר כדורסל חנוכה", EventKind: "פעילות קהילתית", Route: "activity",
-			StartsAt: at(day(10), 9, 0), EndsAt: at(day(10), 13, 0), Attendees: 60, TablesCount: 4, ChairsCount: 80, Equipment: []string{"sound"}, Notes: "צריך גם שולחן ניקוד"},
-		{UserID: uri.ID, RoomID: studio.ID, Title: "חזרה להופעת ריקוד", EventKind: "חזרה",
-			StartsAt: at(day(7), 17, 30), EndsAt: at(day(7), 19, 0), Attendees: 12, QuotedPrice: 225, Notes: "מתנגש עם היפ-הופ? אפשר גם 19:00"},
+		{UserID: dana.ID, CustomerID: &danaC.ID, RoomID: lobby.ID, Title: "יום הולדת 40", EventKind: "אירוע פרטי",
+			StartsAt: at(day(11), 19, 0), EndsAt: at(day(11), 23, 0), Attendees: 90, Equipment: []string{"sound", "catering"}, Notes: "נשמח לסידור שולחנות עגולים", QuotedPrice: 1950},
+		{UserID: uri.ID, RoomID: meeting.ID, Title: "סדנת יזמות", EventKind: "סדנה",
+			StartsAt: at(day(7), 18, 0), EndsAt: at(day(7), 21, 0), Attendees: 18, Equipment: []string{"projector"}, QuotedPrice: 420},
+		{UserID: yosef.ID, RoomID: lobby.ID, Title: "טקס קבלת פנים לעולים חדשים", EventKind: "פעילות קהילתית", Route: "activity",
+			StartsAt: at(day(10), 10, 0), EndsAt: at(day(10), 13, 0), Attendees: 70, TablesCount: 6, ChairsCount: 70, Equipment: []string{"sound"}, Notes: "צריך גם פינת כיבוד קטנה"},
+		{UserID: uri.ID, RoomID: jimbori.ID, Title: "חזרה להופעת ריקוד", EventKind: "חזרה",
+			StartsAt: at(day(7), 17, 30), EndsAt: at(day(7), 19, 0), Attendees: 12, QuotedPrice: 225, Notes: "אפשר גם בשעה מאוחרת יותר"},
 	} {
 		if _, sd.err = tx.CreateRequest(ctx, r); sd.err != nil {
 			return
@@ -281,9 +293,10 @@ func (sd *seeder) run(today time.Time) {
 
 	// ── Staff tasks ──
 	for _, sch := range []domain.TaskSchedule{
-		{Title: "ניקיון אולם אירועים", Kind: "cleaning", RoomID: &hall.ID, AssigneeID: &avi.ID, Weekdays: []int{0, 1, 2, 3, 4, 5}, TimeOfDay: "07:00", DurationMinutes: 90, IsActive: true},
-		{Title: "ניקיון חדרי ישיבות", Kind: "cleaning", RoomID: &meet1.ID, AssigneeID: &avi.ID, Weekdays: []int{0, 2, 4}, TimeOfDay: "14:00", DurationMinutes: 45, IsActive: true},
-		{Title: "בדיקת מערכת הגברה", Kind: "inspection", RoomID: &hall.ID, AssigneeID: &samir.ID, Weekdays: []int{4}, TimeOfDay: "15:00", DurationMinutes: 60, IsActive: true},
+		{Title: "ניקיון הלובי", Kind: "cleaning", RoomID: &lobby.ID, AssigneeID: &avi.ID, Weekdays: []int{0, 1, 2, 3, 4, 5}, TimeOfDay: "07:00", DurationMinutes: 60, IsActive: true},
+		{Title: "ניקיון חדר ישיבות", Kind: "cleaning", RoomID: &meeting.ID, AssigneeID: &avi.ID, Weekdays: []int{0, 2, 4}, TimeOfDay: "14:00", DurationMinutes: 45, IsActive: true},
+		{Title: "ניקיון מטבח צמיד", Kind: "cleaning", RoomID: &kitchen.ID, AssigneeID: &avi.ID, Weekdays: []int{1, 3}, TimeOfDay: "18:30", DurationMinutes: 45, IsActive: true},
+		{Title: "בדיקת מערכת הגברה בלובי", Kind: "inspection", RoomID: &lobby.ID, AssigneeID: &samir.ID, Weekdays: []int{4}, TimeOfDay: "15:00", DurationMinutes: 60, IsActive: true},
 	} {
 		saved, err := tx.SaveSchedule(ctx, sch)
 		if sd.err = err; err != nil {
@@ -296,9 +309,9 @@ func (sd *seeder) run(today time.Time) {
 		}
 	}
 	for _, t := range []domain.Task{
-		{Title: "החלפת נורה בחדר ישיבות 2", Kind: "repair", RoomID: &meet2.ID, AssigneeID: &samir.ID, DueAt: at(today, 12, 0), Description: "נורת לד בתקרה מהבהבת"},
-		{Title: "סידור 180 כיסאות לערב התרמה", Kind: "setup", RoomID: &hall.ID, AssigneeID: &avi.ID, DueAt: at(day(3), 16, 0), BookingID: &fundraiser.ID},
-		{Title: "תיקון ברז בשירותי אולם ספורט", Kind: "repair", RoomID: &sports.ID, AssigneeID: &samir.ID, DueAt: at(today.AddDate(0, 0, 1), 9, 0)},
+		{Title: "החלפת נורה בחדר תפירה", Kind: "repair", RoomID: &sewing.ID, AssigneeID: &samir.ID, DueAt: at(today, 12, 0), Description: "נורת לד בתקרה מהבהבת"},
+		{Title: "סידור 100 כיסאות לערב התרמה", Kind: "setup", RoomID: &lobby.ID, AssigneeID: &avi.ID, DueAt: at(day(3), 16, 0), BookingID: &fundraiser.ID},
+		{Title: "תיקון ברז במטבח צמיד", Kind: "repair", RoomID: &kitchen.ID, AssigneeID: &samir.ID, DueAt: at(today.AddDate(0, 0, 1), 9, 0)},
 	} {
 		if _, sd.err = tx.CreateTask(ctx, t, &admin.ID); sd.err != nil {
 			return
@@ -306,11 +319,11 @@ func (sd *seeder) run(today time.Time) {
 	}
 	// Tickets opened by coordinators: one still waiting for a worker.
 	for _, t := range []domain.Task{
-		{Title: "המקרן בחדר החוגים לא נדלק", Kind: "repair", RoomID: &classroom.ID, DueAt: at(today, 8, 30), ReportedBy: &yoav.ID,
+		{Title: "המקרן בחדר 11 לא נדלק", Kind: "repair", RoomID: &craft.ID, DueAt: at(today, 8, 30), ReportedBy: &yosef.ID,
 			Description: "נורית אדומה מהבהבת, ניסיתי לנתק ולחבר מחדש"},
-		{Title: "חסר טונר במדפסת של חדר הרכזים", Kind: "supplies", DueAt: at(today, 9, 0), ReportedBy: &amit.ID},
-		{Title: "ניקיון סטודיו מחול אחרי סדנה", Kind: "cleaning", RoomID: &studio.ID, AssigneeID: &avi.ID, DueAt: at(today, 13, 0), ReportedBy: &rotem.ID,
-			Description: "נשפכו משקאות ליד המראות"},
+		{Title: "חסר טונר במדפסת של חדר הרכזים", Kind: "supplies", DueAt: at(today, 9, 0), ReportedBy: &hana.ID},
+		{Title: "ניקיון הג׳מבורי אחרי פעילות", Kind: "cleaning", RoomID: &jimbori.ID, AssigneeID: &avi.ID, DueAt: at(today, 13, 0), ReportedBy: &leah.ID,
+			Description: "נשפכו משקאות על המזרנים"},
 	} {
 		if _, sd.err = tx.CreateTask(ctx, t, t.ReportedBy); sd.err != nil {
 			return
@@ -322,13 +335,9 @@ func (sd *seeder) run(today time.Time) {
 		WelcomeText: "ברוכים הבאים למינהל הקהילתי מעלה רמות", RotateSeconds: 12, IsActive: true}); sd.err != nil {
 		return
 	}
-	if _, sd.err = tx.SaveScreen(ctx, domain.SignageScreen{Slug: "music", Name: "מסך בית המוזיקה", BuildingID: &music.ID, Theme: "light",
-		WelcomeText: "בית המוזיקה – מעלה רמות", RotateSeconds: 15, IsActive: true}); sd.err != nil {
-		return
-	}
 	for _, a := range []domain.Announcement{
 		{Title: "ההרשמה לחוגי החורף נפתחה!", Body: "מגוון חוגים לכל הגילאים – הרשמה במזכירות או באתר", StartsAt: today.AddDate(0, 0, -7), Priority: 2},
-		{Title: "יריד קהילתי", Body: fmt.Sprintf("ביום %s בשעה 16:00 באולם האירועים – הכניסה חופשית", day(9).Format("02/01")), StartsAt: today.AddDate(0, 0, -3), Priority: 1},
+		{Title: "יריד קהילתי", Body: fmt.Sprintf("ביום %s בשעה 16:00 בלובי – הכניסה חופשית", day(8).Format("02/01")), StartsAt: today.AddDate(0, 0, -3), Priority: 1},
 		{Title: "שימו לב", Body: "החניה הצפונית סגורה לרגל עבודות עד סוף החודש", StartsAt: today.AddDate(0, 0, -1)},
 	} {
 		if _, sd.err = tx.SaveAnnouncement(ctx, a, &admin.ID); sd.err != nil {

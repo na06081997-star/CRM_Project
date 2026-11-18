@@ -80,7 +80,7 @@ func hall(t *testing.T, st *store.Store) domain.Room {
 		t.Fatal(err)
 	}
 	for _, r := range rooms {
-		if r.Name == "אולם אירועים" {
+		if r.Name == "לובי" {
 			return r
 		}
 	}
@@ -91,7 +91,7 @@ func hall(t *testing.T, st *store.Store) domain.Room {
 func TestBookingConflictsAndSeries(t *testing.T) {
 	svc, st := setup(t)
 	ctx := context.Background()
-	admin := actor(t, st, "maya@matnas.local")
+	admin := actor(t, st, "shiri@matnas.local")
 	room := hall(t, st)
 	start := time.Now().AddDate(0, 2, 0).Truncate(time.Hour)
 
@@ -133,7 +133,7 @@ func TestBookingConflictsAndSeries(t *testing.T) {
 func TestConcurrentBookingsNeverOverlap(t *testing.T) {
 	svc, st := setup(t)
 	ctx := context.Background()
-	admin := actor(t, st, "maya@matnas.local")
+	admin := actor(t, st, "shiri@matnas.local")
 	room := hall(t, st)
 	start := time.Now().AddDate(0, 3, 0).Truncate(time.Hour)
 
@@ -162,7 +162,7 @@ func TestConcurrentBookingsNeverOverlap(t *testing.T) {
 func TestRequestApprovalFlowAndPayments(t *testing.T) {
 	svc, st := setup(t)
 	ctx := context.Background()
-	admin := actor(t, st, "maya@matnas.local")
+	admin := actor(t, st, "shiri@matnas.local")
 	user := actor(t, st, "dana@example.com")
 	room := hall(t, st)
 	start := time.Now().AddDate(0, 1, 0)
@@ -250,7 +250,7 @@ func TestSignageAndDashboard(t *testing.T) {
 	if _, err := svc.Signage(ctx, "nope"); !errors.Is(err, domain.ErrNotFound) {
 		t.Fatalf("unknown screen should 404: %v", err)
 	}
-	d, err := svc.Dashboard(ctx, actor(t, st, "maya@matnas.local"), nil)
+	d, err := svc.Dashboard(ctx, actor(t, st, "shiri@matnas.local"), nil)
 	if err != nil || len(d.Week) != 7 || d.PendingRequests != 4 {
 		t.Fatalf("dashboard: %v %+v", err, d)
 	}
@@ -262,9 +262,9 @@ func TestSignageAndDashboard(t *testing.T) {
 func TestCoordinatorVisibilityAndActivityRoute(t *testing.T) {
 	svc, st := setup(t)
 	ctx := context.Background()
-	yoav := actor(t, st, "yoav@matnas.local")
-	rotem := actor(t, st, "rotem@matnas.local")
-	admin := actor(t, st, "maya@matnas.local")
+	yoav := actor(t, st, "yosef@matnas.local")
+	rotem := actor(t, st, "michael@matnas.local")
+	admin := actor(t, st, "shiri@matnas.local")
 	now := time.Now()
 
 	// Coordinators cannot open the admin views.
@@ -365,10 +365,10 @@ func TestOrganizationBranding(t *testing.T) {
 		t.Fatalf("demo organization not seeded: %v %+v", err, org)
 	}
 	org.Name, org.BrandColor = "מתנ״ס חדש", "#1d4ed8"
-	if _, err := svc.SaveOrganization(ctx, actor(t, st, "maya@matnas.local"), org); !errors.Is(err, domain.ErrForbidden) {
+	if _, err := svc.SaveOrganization(ctx, actor(t, st, "shiri@matnas.local"), org); !errors.Is(err, domain.ErrForbidden) {
 		t.Fatalf("a manager must not rebrand the system: %v", err)
 	}
-	owner := actor(t, st, "owner@matnas.local")
+	owner := actor(t, st, "matanya@matnas.local")
 	bad := org
 	bad.LogoURL, bad.BrandColor = "javascript:alert(1)", "red"
 	var ve *domain.ValidationError
@@ -379,7 +379,7 @@ func TestOrganizationBranding(t *testing.T) {
 	if err != nil || saved.Name != "מתנ״ס חדש" || saved.BrandColor != "#1d4ed8" {
 		t.Fatalf("save: %v %+v", err, saved)
 	}
-	if _, err := svc.Upload(ctx, actor(t, st, "yoav@matnas.local"), "organization", OrganizationEntityID, "x.png", "image/png", nil, 10); !errors.Is(err, domain.ErrForbidden) {
+	if _, err := svc.Upload(ctx, actor(t, st, "yosef@matnas.local"), "organization", OrganizationEntityID, "x.png", "image/png", nil, 10); !errors.Is(err, domain.ErrForbidden) {
 		t.Fatalf("coordinators must not upload client logos: %v", err)
 	}
 }

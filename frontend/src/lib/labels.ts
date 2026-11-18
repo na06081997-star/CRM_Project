@@ -1,7 +1,7 @@
 import type { BookingStatus, BookingType, PaymentMethod, RequestStatus, Role, TaskStatus } from './types'
 
 export const roleLabel: Record<Role, string> = {
-  super_admin: 'מנהל־על',
+  super_admin: 'מנהל תפעול',
   admin: 'מנהל/ת מתנ״ס',
   coordinator: 'רכז/ת',
   staff: 'צוות תפעול',

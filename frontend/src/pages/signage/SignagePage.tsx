@@ -104,7 +104,7 @@ export function SignagePage() {
 
         {isError && <p className="rounded-2xl bg-rose-500/15 p-4 text-rose-300">לא ניתן לטעון את נתוני השילוט. מנסה שוב…</p>}
 
-        <div className="grid flex-1 gap-[1.4em] xl:grid-cols-[1fr_28%]">
+        <div className="grid flex-1 gap-[1.4em] xl:grid-cols-[1fr_34%]">
           {/* Rooms grid */}
           <section className="grid content-start gap-[1em] sm:grid-cols-2 2xl:grid-cols-3">
             {rooms.map((r) => (
@@ -119,14 +119,14 @@ export function SignagePage() {
             {ann && (
               <div key={ann.id} className={clsx('animate-fade-in overflow-hidden rounded-3xl', dark ? 'bg-gradient-to-br from-teal-600 to-teal-800' : 'bg-gradient-to-br from-teal-500 to-teal-700 text-white')}>
                 {ann.imageKey && <img src={publicFileUrl(ann.imageKey)} alt="" className="aspect-video w-full object-cover" />}
-                <div className="p-[1.3em] text-white">
-                  <p className="text-[0.8em] font-semibold uppercase tracking-wide text-teal-100/80">הודעות ועדכונים</p>
-                  <h2 className="mt-1 text-[1.6em] font-bold leading-tight">{ann.title}</h2>
-                  {ann.body && <p className="mt-2 text-[1.05em] text-teal-50/90">{ann.body}</p>}
+                <div className="p-[1.8em] text-white">
+                  <p className="text-[0.95em] font-semibold uppercase tracking-wide text-teal-100/80">הודעות ועדכונים</p>
+                  <h2 className="mt-2 text-[2.2em] font-bold leading-tight">{ann.title}</h2>
+                  {ann.body && <p className="mt-3 text-[1.35em] leading-snug text-teal-50/90">{ann.body}</p>}
                   {announcements.length > 1 && (
-                    <div className="mt-4 flex gap-1.5">
+                    <div className="mt-6 flex gap-2">
                       {announcements.map((a, i) => (
-                        <span key={a.id} className={clsx('h-1.5 rounded-full transition-all', i === slide % announcements.length ? 'w-6 bg-white' : 'w-1.5 bg-white/40')} />
+                        <span key={a.id} className={clsx('h-2 rounded-full transition-all', i === slide % announcements.length ? 'w-8 bg-white' : 'w-2 bg-white/40')} />
                       ))}
                     </div>
                   )}
