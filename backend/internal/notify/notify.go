@@ -14,6 +14,7 @@ import (
 
 	"github.com/na06081997-star/CRM_Project/backend/internal/config"
 	"github.com/na06081997-star/CRM_Project/backend/internal/domain"
+	"github.com/na06081997-star/CRM_Project/backend/internal/mailer"
 )
 
 type Recipient struct {
@@ -49,7 +50,9 @@ type Dispatcher struct {
 	rec      Recorder
 }
 
-func NewDispatcher(cfg *config.Config, rec Recorder) *Dispatcher {
+// NewDispatcher enables the channels listed in NOTIFY_CHANNELS. mail may be
+// nil when SMTP is not configured (the e-mail channel is then skipped).
+func NewDispatcher(cfg *config.Config, rec Recorder, mail mailer.Sender, brand func(context.Context) mailer.Brand) *Dispatcher {
 	d := &Dispatcher{rec: rec}
 	for _, name := range cfg.NotifyChannels {
 		switch strings.ToLower(name) {
@@ -60,9 +63,8 @@ func NewDispatcher(cfg *config.Config, rec Recorder) *Dispatcher {
 				d.channels = append(d.channels, NewTelegram(cfg.TelegramBotToken))
 			}
 		case "email":
-			if cfg.SMTPHost != "" && cfg.SMTPFrom != "" {
-				d.channels = append(d.channels, Email{Host: cfg.SMTPHost, Port: cfg.SMTPPort,
-					User: cfg.SMTPUser, Password: cfg.SMTPPassword, From: cfg.SMTPFrom})
+			if mail != nil {
+				d.channels = append(d.channels, Email{Mailer: mail, Brand: brand})
 			}
 		case "twilio":
 			if cfg.TwilioAccountSID != "" {

@@ -49,7 +49,10 @@ func Connect(ctx context.Context, url string) (*pgxpool.Pool, error) {
 // Migrate applies every embedded migration not yet recorded in
 // schema_migrations, each inside its own transaction. A session-level
 // advisory lock makes concurrent backend replicas safe.
-func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
+func Migrate(ctx context.Context, pool *pgxpool.Pool) error { return MigrateTo(ctx, pool, "") }
+
+// MigrateTo applies migrations up to and including version `last` (all when empty).
+func MigrateTo(ctx context.Context, pool *pgxpool.Pool, last string) error {
 	conn, err := pool.Acquire(ctx)
 	if err != nil {
 		return err
@@ -74,6 +77,9 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 
 	for _, f := range files {
 		version := strings.TrimSuffix(strings.TrimPrefix(f, "migrations/"), ".sql")
+		if last != "" && version > last {
+			break
+		}
 		var exists bool
 		if err := conn.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM schema_migrations WHERE version = $1)`, version).Scan(&exists); err != nil {
 			return err

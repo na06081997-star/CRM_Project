@@ -48,7 +48,7 @@ export function SignPage() {
             ok
             icon={<CheckCircle2 className="h-7 w-7" />}
             title="החוזה נחתם, תודה!"
-            text={`החשבון שלך במערכת פעיל${c.signedAt ? ` (נחתם ${dateTime(c.signedAt)})` : ''}. ניתן להתחבר עם חשבון ה־Google שלך.`}
+            text={`החשבון שלך במערכת נפתח${c.signedAt ? ` (נחתם ${dateTime(c.signedAt)})` : ''}. אם זו הכניסה הראשונה, נשלח אליך אימייל לבחירת סיסמה.`}
             action={
               <a href="/login">
                 <Button className="w-full">כניסה למערכת</Button>

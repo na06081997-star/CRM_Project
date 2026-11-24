@@ -224,7 +224,7 @@ function NewCoordinatorDialog({ open, onClose }: { open: boolean; onClose: () =>
           <Field label="טלפון נייד" error={errors.phone} hint={f.contract === 'digital' ? 'לשליחת הקישור ב־SMS' : undefined}>
             <Input type="tel" value={f.phone} onChange={(e) => set('phone', e.target.value)} placeholder="050-000-0000" />
           </Field>
-          <Field label="אימייל (חשבון Google) *" error={errors.email} hint="איתו הרכז/ת יתחבר/תתחבר למערכת" className="sm:col-span-2">
+          <Field label="אימייל *" error={errors.email} hint="אליו תישלח ההזמנה לבחירת סיסמה וקודי הכניסה" className="sm:col-span-2">
             <Input type="email" value={f.email} onChange={(e) => set('email', e.target.value)} />
           </Field>
           <div className="sm:col-span-2">

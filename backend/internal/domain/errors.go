@@ -38,3 +38,14 @@ type ConflictError struct {
 func (e *ConflictError) Error() string {
 	return fmt.Sprintf("booking conflicts with %d existing booking(s)", len(e.Conflicts))
 }
+
+// AuthError is a login-flow refusal with a message safe to show publicly
+// (it never says whether an account exists).
+type AuthError struct {
+	Status     int    // HTTP status
+	Code       string // machine code for the frontend
+	Message    string // Hebrew, shown to the user
+	RetryAfter int    // seconds, when waiting helps
+}
+
+func (e *AuthError) Error() string { return "auth: " + e.Code }

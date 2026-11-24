@@ -180,10 +180,10 @@ export function SendContractDialog({ target, onClose }: { target: ContractTarget
             <p className={clsx('rounded-xl p-3 text-xs', email ? 'bg-subtle text-muted' : 'bg-amber-50 text-amber-800 dark:bg-amber-950/20')}>
               {email ? (
                 <>
-                  לאחר החתימה ייפתח ללקוח חשבון במערכת – כניסה עם חשבון Google של <b dir="ltr">{email}</b>.
+                  לאחר החתימה ייפתח ללקוח חשבון במערכת, והזמנה לבחירת סיסמה תישלח ל־<b dir="ltr">{email}</b>.
                 </>
               ) : (
-                'ללקוח אין אימייל: הוסיפו אימייל (חשבון Google) בפרטי הלקוח כדי לפתוח לו חשבון.'
+                'ללקוח אין אימייל: הוסיפו אימייל בפרטי הלקוח כדי לפתוח לו חשבון.'
               )}
             </p>
           )}

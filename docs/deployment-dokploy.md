@@ -25,7 +25,7 @@ Domain: `kehilaplus.com` (DNS at Hostinger). Each client gets a short slug (`maa
 
 | Dokploy environment | Branch | URL | Data / login |
 | --- | --- | --- | --- |
-| `production` | `main` | `<client>.kehilaplus.com` | real data, Google login (`AUTH_MODE=firebase`) |
+| `production` | `main` | `<client>.kehilaplus.com` | real data, password + e-mail code (`AUTH_MODE=password`) |
 | `development` | `develop` | `dev.<client>.kehilaplus.com` | empty, Google login, same setup as production (the last check before production) |
 | `demo` | `demo/<client>` | `demo.<client>.kehilaplus.com` | demo data, demo login behind `DEMO_ACCESS_CODE` |
 
@@ -42,7 +42,7 @@ The code is the same for every client; what differs lives in each environment's 
 1. **DNS** (Hostinger → Domains → kehilaplus.com → DNS): three `A` records to the VPS IP: `<client>`, `dev.<client>`, `demo.<client>`.
 2. **Logo**: add `frontend/public/brand/clients/<client>.png` and `<client>-mark.png` (or upload them later in הגדרות מערכת).
 3. **Dokploy**: create the project `<client>` with the environments `production`, `development` and `demo`, one compose service in each (step 3 below), with fresh secrets for each.
-4. **Firebase** → Authentication → Settings → Authorized domains: add `<client>.kehilaplus.com` and `dev.<client>.kehilaplus.com`.
+4. **E-mail**: SMTP settings of the Hostinger mailbox `noreply@kehilaplus.com` (see [authentication.md](authentication.md)); test with `server mail-test`.
 5. Optional demo: `git branch demo/<client> develop && git push -u origin demo/<client>`.
 
 ## 1. Prepare the VPS (once)
@@ -77,18 +77,18 @@ Docker-published ports bypass `ufw`, so once the panel has a domain, close **300
    APP_ENV=production
    DOMAIN=crm.example.co.il
    CORS_ORIGINS=https://crm.example.co.il
-   AUTH_MODE=firebase   # + FIREBASE_* and BOOTSTRAP_ADMIN_EMAILS, see firebase-setup.md
+   AUTH_MODE=password   # + AUTH_CODE_SECRET, PUBLIC_URL, SMTP_*, MAIL_FROM, BOOTSTRAP_SUPER_ADMIN_EMAIL — see authentication.md
    POSTGRES_PASSWORD / REDIS_PASSWORD / JWT_SECRET / GARAGE_* / S3_*   (random)
    ORG_NAME / ORG_SHORT_NAME / ORG_LOGO_URL / ORG_MARK_URL              (client branding)
    ```
    Do **not** set `COMPOSE_FILE`: Dokploy must run `docker-compose.yml` alone.
 3. **Domains → Add**: host = `DOMAIN`, service **frontend**, port **80**, HTTPS on, certificate Let's Encrypt.
 4. **Deploy**. The first boot runs the migrations and fills the client branding from `ORG_*`.
-5. Add the domain to Firebase → Authentication → Settings → **Authorized domains** (production and development).
+5. On a new instance the first start e-mails the invitation of the initial super administrator (`BOOTSTRAP_SUPER_ADMIN_EMAIL`). If it was not delivered: `docker exec <backend> /app/server bootstrap-resend`.
 
-Development uses the production settings too (`APP_ENV=production`, `AUTH_MODE=firebase`, no demo data). The demo uses `APP_ENV=development`, `AUTH_MODE=dev` and `DEMO_ACCESS_CODE`.
+Development uses the production settings too (`APP_ENV=production`, `AUTH_MODE=password`, no demo data). The demo uses `APP_ENV=development`, `AUTH_MODE=dev` and `DEMO_ACCESS_CODE`.
 
-`APP_ENV=production` refuses `AUTH_MODE=dev` and skips demo data (`SEED_DEMO=true` on an empty database forces it, but demo accounts cannot sign in with Google).
+`APP_ENV=production` refuses `AUTH_MODE=dev` and skips demo data (`SEED_DEMO=true` on an empty database forces it, but demo accounts have no password; `SEED_DEMO=false` skips it on non-production instances).
 
 Signage: open `https://<domain>/signage/lobby` full screen on the lobby TV. No login needed; it updates live.
 

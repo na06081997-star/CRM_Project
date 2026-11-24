@@ -30,6 +30,9 @@ const PortalIssues = lazy(() => import('./pages/portal/IssuesPage').then((m) => 
 const PortalHelp = lazy(() => import('./pages/portal/HelpPage').then((m) => ({ default: m.HelpPage })))
 const PortalCalendar = lazy(() => import('./pages/calendar/CalendarPage').then((m) => ({ default: () => <m.CalendarPage mode="portal" /> })))
 const Staff = lazy(() => import('./pages/staff/StaffPage').then((m) => ({ default: m.StaffPage })))
+const Activate = lazy(() => import('./pages/AccountPages').then((m) => ({ default: m.ActivatePage })))
+const Forgot = lazy(() => import('./pages/AccountPages').then((m) => ({ default: m.ForgotPage })))
+const Reset = lazy(() => import('./pages/AccountPages').then((m) => ({ default: m.ResetPage })))
 const Sign = lazy(() => import('./pages/SignPage').then((m) => ({ default: m.SignPage })))
 const Signage = lazy(() => import('./pages/signage/SignagePage').then((m) => ({ default: m.SignagePage })))
 
@@ -68,6 +71,9 @@ export function App() {
         <Route path="/signage" element={<Signage />} />
         <Route path="/signage/:slug" element={<Signage />} />
         <Route path="/sign/:token" element={<Sign />} />
+        <Route path="/activate" element={<Activate />} />
+        <Route path="/forgot" element={<Forgot />} />
+        <Route path="/reset" element={<Reset />} />
 
         <Route
           path="/admin"

@@ -30,6 +30,7 @@ func (r Role) Valid() bool {
 type User struct {
 	ID             uuid.UUID `json:"id"`
 	FirebaseUID    *string   `json:"-"`
+	Username       string    `json:"username"`
 	Email          string    `json:"email"`
 	FullName       string    `json:"fullName"`
 	Phone          *string   `json:"phone"`
@@ -39,6 +40,33 @@ type User struct {
 	AvatarColor    string    `json:"avatarColor"`
 	IsActive       bool      `json:"isActive"`
 	CreatedAt      time.Time `json:"createdAt"`
+
+	// Account access (filled for user administrators only, see service.ListUsers).
+	Status            string      `json:"status"` // pending | active | disabled
+	HasPassword       bool        `json:"hasPassword"`
+	ActivatedAt       *time.Time  `json:"activatedAt"`
+	FirstLoginAt      *time.Time  `json:"firstLoginAt"`
+	LastLoginAt       *time.Time  `json:"lastLoginAt"`
+	LoginHistoryKnown bool        `json:"loginHistoryKnown"`
+	Invitation        *Invitation `json:"invitation,omitempty"`
+	TokenVersion      int         `json:"-"`
+}
+
+// Account statuses.
+const (
+	AccountPending  = "pending"  // invited, has not completed a first login with code
+	AccountActive   = "active"   // completed a first login (or existed before password login)
+	AccountDisabled = "disabled" // turned off by an administrator (or waiting for a contract)
+)
+
+// Invitation is the state of the latest invitation e-mail of an account.
+type Invitation struct {
+	SentAt        *time.Time `json:"sentAt"`
+	CreatedAt     time.Time  `json:"createdAt"`
+	ExpiresAt     time.Time  `json:"expiresAt"`
+	UsedAt        *time.Time `json:"usedAt"`
+	Status        string     `json:"status"` // sent | failed | expired | used | revoked
+	DeliveryError *string    `json:"deliveryError"`
 }
 
 type Customer struct {

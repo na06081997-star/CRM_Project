@@ -6,13 +6,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"mime"
 	"net/http"
-	"net/smtp"
 	"net/url"
-	"strconv"
 	"strings"
 	"time"
+
+	"github.com/na06081997-star/CRM_Project/backend/internal/mailer"
 )
 
 var httpClient = &http.Client{Timeout: 15 * time.Second}
@@ -57,16 +56,16 @@ func (t *Telegram) Send(ctx context.Context, m Message) (string, error) {
 	return m.To.TelegramChatID, doRequest(req)
 }
 
-// ── Email over SMTP (free with Gmail app passwords) ──────────
+// ── Email (shared SMTP mailer) ───────────────────────────────
 
 type Email struct {
-	Host, User, Password, From string
-	Port                       int
+	Mailer mailer.Sender
+	Brand  func(ctx context.Context) mailer.Brand
 }
 
 func (e Email) Name() string { return "email" }
 
-func (e Email) Send(_ context.Context, m Message) (string, error) {
+func (e Email) Send(ctx context.Context, m Message) (string, error) {
 	if m.To.Email == "" {
 		return "", ErrNoAddress
 	}
@@ -74,20 +73,7 @@ func (e Email) Send(_ context.Context, m Message) (string, error) {
 	if subject == "" {
 		subject = "תזכורת"
 	}
-	var msg bytes.Buffer
-	fmt.Fprintf(&msg, "From: %s\r\nTo: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\n", e.From, m.To.Email, mime.BEncoding.Encode("UTF-8", subject))
-	msg.WriteString("Content-Type: text/html; charset=UTF-8\r\n\r\n")
-	fmt.Fprintf(&msg, `<div dir="rtl" style="font-family:Arial,sans-serif">%s</div>`, strings.ReplaceAll(htmlEscape(m.Body), "\n", "<br>"))
-
-	var auth smtp.Auth
-	if e.User != "" {
-		auth = smtp.PlainAuth("", e.User, e.Password, e.Host)
-	}
-	return m.To.Email, smtp.SendMail(e.Host+":"+strconv.Itoa(e.Port), auth, e.From, []string{m.To.Email}, msg.Bytes())
-}
-
-func htmlEscape(s string) string {
-	return strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;", `"`, "&quot;").Replace(s)
+	return m.To.Email, e.Mailer.Send(ctx, mailer.Notice(e.Brand(ctx), m.To.Email, subject, m.Body))
 }
 
 // ── Twilio SMS (paid) ────────────────────────────────────────

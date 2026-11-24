@@ -60,7 +60,7 @@ Only Traefik publishes a port; the backend, database, Redis and Garage live on t
 | Frontend | React 18, TypeScript, Vite, Tailwind (RTL), TanStack Query, Zustand, date-fns (he) |
 | Backend | Go 1.23, chi, pgx, gorilla/websocket, go-redis, minio-go — `cmd/` → `api` (handlers) → `service` (use cases) → `store` (repositories), pure rules in `domain` |
 | Data | PostgreSQL with a `btree_gist` **exclusion constraint** that makes overlapping bookings impossible at the database level (buffer included) |
-| Auth | Firebase / Google sign-in (ID tokens verified against Google's public keys) or a demo login in dev |
+| Auth | Username/e-mail + password + 6-digit e-mail code, invitations by the super administrator (Hostinger SMTP), or a demo user picker |
 | Notifications | console (dev), Telegram & e-mail (free), Twilio / 019 SMS (paid) — see [docs/notifications.md](docs/notifications.md) |
 
 ## Quick start (Docker)
@@ -102,7 +102,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md): `main` is always deployable (Dokploy aut
 
 ## Docs
 
-- [Firebase / Google login setup](docs/firebase-setup.md)
+- [Authentication: password + e-mail code, invitations, recovery](docs/authentication.md)
 - [Deploying on Dokploy](docs/deployment-dokploy.md)
 - [Notifications & SMS options](docs/notifications.md)
 - Original specs: [docs/specs](docs/specs)

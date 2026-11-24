@@ -21,19 +21,18 @@ type Server struct {
 	cfg      *config.Config
 	svc      *service.Service
 	verifier auth.Verifier
-	local    *auth.Local
 	hub      *realtime.Hub
 	files    storage.Store
 	version  string
 }
 
-func NewServer(cfg *config.Config, svc *service.Service, v auth.Verifier, local *auth.Local, hub *realtime.Hub, files storage.Store, version string) *Server {
-	return &Server{cfg: cfg, svc: svc, verifier: v, local: local, hub: hub, files: files, version: version}
+func NewServer(cfg *config.Config, svc *service.Service, hub *realtime.Hub, files storage.Store, version string) *Server {
+	return &Server{cfg: cfg, svc: svc, verifier: svc.Sessions(), hub: hub, files: files, version: version}
 }
 
 func (s *Server) Routes() http.Handler {
 	r := chi.NewRouter()
-	r.Use(middleware.RequestID, middleware.RealIP, recoverer, requestLogger, securityHeaders, cors(s.cfg.CORSOrigins))
+	r.Use(middleware.RequestID, recoverer, requestLogger, securityHeaders, cors(s.cfg.CORSOrigins))
 	r.Use(s.authenticate)
 
 	r.Get("/api/health", s.health)
@@ -49,10 +48,24 @@ func (s *Server) Routes() http.Handler {
 	r.Get("/ws/signage", func(w http.ResponseWriter, r *http.Request) {
 		s.hub.Serve(w, r, []string{realtime.TopicSignage})
 	})
-	if s.cfg.AuthMode == "dev" {
-		r.Get("/api/auth/dev-users", s.devUsers)
-		r.Post("/api/auth/dev-login", s.devLogin)
-	}
+	// Session-opening routes: password + e-mail code, or the demo picker.
+	// Nothing else issues a session token.
+	r.Route("/api/auth", func(r chi.Router) {
+		r.Use(noStore)
+		if s.cfg.PasswordAuth() {
+			r.Post("/login", s.login)
+			r.Post("/verify", s.verifyCode)
+			r.Post("/resend", s.resendCode)
+			r.Post("/link", s.checkLink)
+			r.Post("/activate", s.activate)
+			r.Post("/forgot", s.forgotPassword)
+			r.Post("/reset", s.resetPassword)
+		}
+		if s.cfg.AuthMode == "dev" {
+			r.Get("/dev-users", s.devUsers)
+			r.Post("/dev-login", s.devLogin)
+		}
+	})
 
 	// ── Authenticated ──
 	r.Group(func(r chi.Router) {
@@ -148,7 +161,9 @@ func (s *Server) Routes() http.Handler {
 			r.Route("/users", func(r chi.Router) {
 				r.Get("/", s.listUsers)
 				r.Post("/", s.saveUser)
+				r.Post("/invite", s.inviteUser)
 				r.Put("/{id}", s.saveUser)
+				r.Post("/{id}/invite", s.resendInvitation)
 			})
 			r.Route("/signage", func(r chi.Router) {
 				r.Get("/screens", s.listScreens)
@@ -201,13 +216,10 @@ func (s *Server) publicConfig(w http.ResponseWriter, r *http.Request) {
 		"appName":          s.cfg.AppName,
 		"organization":     org,
 		"authMode":         s.cfg.AuthMode,
+		"passwordPolicy":   map[string]any{"minLength": 10, "maxBytes": 72},
 		"demoCodeRequired": s.cfg.AuthMode == "dev" && s.cfg.DemoAccessCode != "",
 		"timezone":         s.cfg.Location.String(),
 		"version":          s.version,
-		"firebase": map[string]string{
-			"apiKey": s.cfg.FirebaseAPIKey, "authDomain": s.cfg.FirebaseAuthDomain,
-			"projectId": s.cfg.FirebaseProjectID, "appId": s.cfg.FirebaseAppID,
-		},
 	})
 }
 

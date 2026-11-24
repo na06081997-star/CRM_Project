@@ -1,4 +1,5 @@
 // Command server runs the CRM API, WebSocket hub and background scheduler.
+// It also carries the operator commands (see `server help`).
 package main
 
 import (
@@ -10,15 +11,16 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/redis/go-redis/v9"
 
 	"github.com/na06081997-star/CRM_Project/backend/internal/api"
-	"github.com/na06081997-star/CRM_Project/backend/internal/auth"
 	"github.com/na06081997-star/CRM_Project/backend/internal/config"
 	"github.com/na06081997-star/CRM_Project/backend/internal/db"
+	"github.com/na06081997-star/CRM_Project/backend/internal/mailer"
 	"github.com/na06081997-star/CRM_Project/backend/internal/notify"
 	"github.com/na06081997-star/CRM_Project/backend/internal/realtime"
 	"github.com/na06081997-star/CRM_Project/backend/internal/service"
@@ -31,6 +33,10 @@ import (
 var version = "0.1.0" // x-release-please-version
 
 func main() {
+	if len(os.Args) > 1 && !strings.HasPrefix(os.Args[1], "-") {
+		slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn})))
+		os.Exit(command(os.Args[1], os.Args[2:]))
+	}
 	healthcheck := flag.Bool("healthcheck", false, "probe the local /api/health endpoint and exit")
 	flag.Parse()
 	if *healthcheck {
@@ -44,24 +50,63 @@ func main() {
 	}
 }
 
+// app is what both the server and the operator commands need.
+type app struct {
+	cfg   *config.Config
+	st    *store.Store
+	svc   *service.Service
+	close func()
+}
+
+func open(ctx context.Context, events service.Publisher) (*app, error) {
+	cfg, err := config.Load()
+	if err != nil {
+		return nil, err
+	}
+	pool, err := db.Connect(ctx, cfg.DatabaseURL)
+	if err != nil {
+		return nil, err
+	}
+	if err := db.Migrate(ctx, pool); err != nil {
+		pool.Close()
+		return nil, fmt.Errorf("migrate: %w", err)
+	}
+	st := store.New(pool)
+	files, err := storage.NewS3(cfg.S3Endpoint, cfg.S3AccessKey, cfg.S3SecretKey, cfg.S3Bucket, cfg.S3Region)
+	if err != nil {
+		pool.Close()
+		return nil, err
+	}
+	var mail mailer.Sender
+	if cfg.SMTPHost != "" && cfg.MailFrom != "" {
+		m, err := mailer.NewSMTP(mailer.Config{Host: cfg.SMTPHost, Port: cfg.SMTPPort, TLS: cfg.SMTPTLS,
+			Username: cfg.SMTPUser, Password: cfg.SMTPPassword, From: cfg.MailFrom})
+		if err != nil {
+			pool.Close()
+			return nil, err
+		}
+		mail = m
+	}
+	// The dispatcher needs the service for the e-mail branding, and the
+	// service needs the dispatcher: brand is resolved lazily.
+	var svc *service.Service
+	brand := func(ctx context.Context) mailer.Brand { return svc.MailBrand(ctx) }
+	dispatcher := notify.NewDispatcher(cfg, st, mail, brand)
+	svc = service.New(cfg, st, events, dispatcher, files)
+	if mail != nil {
+		svc.SetMailer(mail)
+	}
+	return &app{cfg: cfg, st: st, svc: svc, close: pool.Close}, nil
+}
+
 func run() error {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
 	cfg, err := config.Load()
 	if err != nil {
 		return err
 	}
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
-
-	pool, err := db.Connect(ctx, cfg.DatabaseURL)
-	if err != nil {
-		return err
-	}
-	defer pool.Close()
-	if err := db.Migrate(ctx, pool); err != nil {
-		return fmt.Errorf("migrate: %w", err)
-	}
-	st := store.New(pool)
-
 	var rdb *redis.Client
 	if cfg.RedisURL != "" {
 		opts, err := redis.ParseURL(cfg.RedisURL)
@@ -77,33 +122,34 @@ func run() error {
 	hub := realtime.NewHub(rdb, cfg.CORSOrigins)
 	go hub.Run(ctx)
 
-	files, err := storage.NewS3(cfg.S3Endpoint, cfg.S3AccessKey, cfg.S3SecretKey, cfg.S3Bucket, cfg.S3Region)
+	a, err := open(ctx, hub)
 	if err != nil {
 		return err
 	}
-	dispatcher := notify.NewDispatcher(cfg, st)
-	svc := service.New(cfg, st, hub, dispatcher, files)
+	defer a.close()
+	svc := a.svc
 
 	if err := svc.BootstrapOrganization(ctx); err != nil {
 		return fmt.Errorf("organization: %w", err)
 	}
-	if !cfg.IsProduction() || os.Getenv("SEED_DEMO") == "true" {
+	if seed := os.Getenv("SEED_DEMO"); seed == "true" || (!cfg.IsProduction() && seed != "false") {
 		if err := svc.SeedDemo(ctx); err != nil {
 			return fmt.Errorf("seed: %w", err)
 		}
 	}
-
-	local := auth.NewLocal(cfg.JWTSecret)
-	var verifier auth.Verifier = local
-	if cfg.AuthMode == "firebase" {
-		verifier = auth.Chain{auth.NewFirebase(cfg.FirebaseProjectID), local}
+	if err := svc.BootstrapSuperAdmin(ctx); err != nil {
+		return err
 	}
 
 	go runScheduler(ctx, svc)
 
+	files, err := storage.NewS3(cfg.S3Endpoint, cfg.S3AccessKey, cfg.S3SecretKey, cfg.S3Bucket, cfg.S3Region)
+	if err != nil {
+		return err
+	}
 	srv := &http.Server{
 		Addr:              cfg.HTTPAddr,
-		Handler:           api.NewServer(cfg, svc, verifier, local, hub, files, version).Routes(),
+		Handler:           api.NewServer(cfg, svc, hub, files, version).Routes(),
 		ReadHeaderTimeout: 10 * time.Second,
 		IdleTimeout:       120 * time.Second,
 	}
@@ -112,6 +158,7 @@ func run() error {
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
 		srv.Shutdown(shutdownCtx) //nolint:errcheck
+		svc.WaitBackground()
 	}()
 
 	slog.Info("server listening", "addr", cfg.HTTPAddr, "version", version, "auth", cfg.AuthMode, "env", cfg.Env)
@@ -138,6 +185,7 @@ func runScheduler(ctx context.Context, svc *service.Service) {
 			svc.SignageTick(ctx)
 		case <-hourly.C:
 			svc.MaterializeSchedules(ctx)
+			svc.PurgeAuth(ctx)
 		}
 	}
 }

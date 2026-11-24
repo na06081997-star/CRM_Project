@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { api, setToken, setUnauthorizedHandler } from './api'
-import type { Me, PublicConfig, Role, User } from './types'
+import type { Challenge, Me, PublicConfig, Role, SessionResponse, User } from './types'
 
 const STORAGE_KEY = 'crm.session'
 
@@ -16,9 +16,13 @@ interface AuthState {
   session: Session | null
   init: () => Promise<void>
   reloadConfig: () => Promise<void>
+  /** Demo instances only: pick a user. */
   devLogin: (email: string, code?: string) => Promise<void>
-  googleLogin: () => Promise<void>
-  logout: () => Promise<void>
+  /** Step 1: identifier + password → a code is e-mailed. */
+  passwordLogin: (identifier: string, password: string) => Promise<Challenge>
+  /** Step 2: the e-mailed code opens the session. */
+  verifyCode: (challenge: string, code: string) => Promise<void>
+  logout: () => void
   refreshMe: () => Promise<void>
   setUser: (me: Me) => void
 }
@@ -41,112 +45,72 @@ function load(): Session | null {
   }
 }
 
-// Firebase is loaded lazily so dev-mode bundles never download it.
-async function firebaseAuth(cfg: PublicConfig) {
-  const [{ initializeApp, getApps }, authMod] = await Promise.all([import('firebase/app'), import('firebase/auth')])
-  const app = getApps()[0] ?? initializeApp(cfg.firebase)
-  return { auth: authMod.getAuth(app), mod: authMod }
-}
-
-export const useAuth = create<AuthState>((set, get) => ({
-  ready: false,
-  config: null,
-  session: null,
-
-  async init() {
-    setUnauthorizedHandler(() => {
-      persist(null)
-      setToken(null)
-      set({ session: null })
-    })
-    const config = await api.get<PublicConfig>('/public/config').catch(() => null)
-    set({ config })
-    const saved = load()
-    if (saved) {
-      setToken(saved.token)
-      set({ session: saved })
-      // Firebase ID tokens live one hour: refresh silently on boot.
-      if (config?.authMode === 'firebase') {
-        try {
-          const { auth } = await firebaseAuth(config)
-          await auth.authStateReady()
-          if (auth.currentUser) {
-            const fresh = await auth.currentUser.getIdToken()
-            setToken(fresh)
-            set({ session: { ...saved, token: fresh } })
-            persist({ ...saved, token: fresh })
-          }
-        } catch {
-          /* fall through: /me below decides */
-        }
-      }
-      await get().refreshMe().catch(() => undefined)
-    }
-    set({ ready: true })
-  },
-
-  async reloadConfig() {
-    const config = await api.get<PublicConfig>('/public/config').catch(() => null)
-    if (config) set({ config })
-  },
-
-  async devLogin(email, code) {
-    const res = await api.post<Me & { token: string }>('/auth/dev-login', { email, code })
+export const useAuth = create<AuthState>((set, get) => {
+  const open = (res: SessionResponse) => {
     const session = { token: res.token, user: res.user, permissions: res.permissions }
     setToken(res.token)
     persist(session)
     set({ session })
-  },
+  }
+  return {
+    ready: false,
+    config: null,
+    session: null,
 
-  async googleLogin() {
-    const cfg = get().config
-    if (!cfg) throw new Error('תצורה לא זמינה')
-    const { auth, mod } = await firebaseAuth(cfg)
-    const cred = await mod.signInWithPopup(auth, new mod.GoogleAuthProvider())
-    const idToken = await cred.user.getIdToken()
-    setToken(idToken)
-    const me = await api.get<Me>('/me')
-    const session = { token: idToken, user: me.user, permissions: me.permissions }
-    persist(session)
-    set({ session })
-    // Keep the stored token fresh while the tab is open.
-    mod.onIdTokenChanged(auth, async (u) => {
-      if (!u) return
-      const t = await u.getIdToken()
-      setToken(t)
-      const cur = get().session
-      if (cur) {
-        const next = { ...cur, token: t }
-        persist(next)
-        set({ session: next })
+    async init() {
+      setUnauthorizedHandler(() => {
+        persist(null)
+        setToken(null)
+        set({ session: null })
+      })
+      const config = await api.get<PublicConfig>('/public/config').catch(() => null)
+      set({ config })
+      const saved = load()
+      if (saved) {
+        setToken(saved.token)
+        set({ session: saved })
+        await get().refreshMe().catch(() => undefined)
       }
-    })
-  },
+      set({ ready: true })
+    },
 
-  async logout() {
-    const cfg = get().config
-    if (cfg?.authMode === 'firebase') {
-      const { auth, mod } = await firebaseAuth(cfg)
-      await mod.signOut(auth).catch(() => undefined)
-    }
-    persist(null)
-    setToken(null)
-    set({ session: null })
-  },
+    async reloadConfig() {
+      const config = await api.get<PublicConfig>('/public/config').catch(() => null)
+      if (config) set({ config })
+    },
 
-  async refreshMe() {
-    const me = await api.get<Me>('/me')
-    get().setUser(me)
-  },
+    async devLogin(email, code) {
+      open(await api.post<SessionResponse>('/auth/dev-login', { email, code }))
+    },
 
-  setUser(me) {
-    const cur = get().session
-    if (!cur) return
-    const next = { ...cur, user: me.user, permissions: me.permissions }
-    persist(next)
-    set({ session: next })
-  },
-}))
+    passwordLogin(identifier, password) {
+      return api.post<Challenge>('/auth/login', { identifier, password })
+    },
+
+    async verifyCode(challenge, code) {
+      open(await api.post<SessionResponse>('/auth/verify', { challenge, code }))
+    },
+
+    logout() {
+      persist(null)
+      setToken(null)
+      set({ session: null })
+    },
+
+    async refreshMe() {
+      const me = await api.get<Me>('/me')
+      get().setUser(me)
+    },
+
+    setUser(me) {
+      const cur = get().session
+      if (!cur) return
+      const next = { ...cur, user: me.user, permissions: me.permissions }
+      persist(next)
+      set({ session: next })
+    },
+  }
+})
 
 export const useUser = () => useAuth((s) => s.session?.user ?? null)
 

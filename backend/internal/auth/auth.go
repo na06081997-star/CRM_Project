@@ -1,6 +1,6 @@
-// Package auth verifies bearer tokens. Two issuers are supported:
-//   - local HS256 tokens minted by the backend (AUTH_MODE=dev, demo login)
-//   - Firebase ID tokens (AUTH_MODE=firebase), verified against Google's JWKS
+// Package auth signs and verifies the CRM's session tokens (HS256 JWT).
+// A session is only issued after the e-mail code was verified (or, on a
+// demo instance, by the demo user picker).
 package auth
 
 import (
@@ -14,10 +14,11 @@ import (
 
 // Identity is what a verified token tells us about the caller.
 type Identity struct {
-	UserID      uuid.UUID // set for local tokens
-	FirebaseUID string    // set for Firebase tokens
-	Email       string
-	Name        string
+	UserID uuid.UUID
+	Email  string
+	// Version must equal the account's token version: bumping it (password
+	// reset, recovery) ends every session issued before.
+	Version int
 }
 
 type Verifier interface {
@@ -26,22 +27,27 @@ type Verifier interface {
 
 var ErrInvalidToken = errors.New("invalid token")
 
-// ── Local tokens ─────────────────────────────────────────────
-
 type Local struct {
 	secret []byte
 	ttl    time.Duration
 }
 
-func NewLocal(secret string) *Local { return &Local{secret: []byte(secret), ttl: 7 * 24 * time.Hour} }
+func NewLocal(secret string, ttl time.Duration) *Local {
+	if ttl <= 0 {
+		ttl = 7 * 24 * time.Hour
+	}
+	return &Local{secret: []byte(secret), ttl: ttl}
+}
 
-func (l *Local) Issue(userID uuid.UUID, email string) (string, time.Time, error) {
-	exp := time.Now().Add(l.ttl)
+func (l *Local) Issue(userID uuid.UUID, email string, version int) (string, time.Time, error) {
+	now := time.Now()
+	exp := now.Add(l.ttl)
 	tok := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"sub":   userID.String(),
 		"email": email,
+		"ver":   version,
 		"iss":   "crm-local",
-		"iat":   time.Now().Unix(),
+		"iat":   now.Unix(),
 		"exp":   exp.Unix(),
 	})
 	s, err := tok.SignedString(l.secret)
@@ -62,18 +68,6 @@ func (l *Local) Verify(_ context.Context, token string) (Identity, error) {
 		return Identity{}, ErrInvalidToken
 	}
 	email, _ := claims["email"].(string)
-	return Identity{UserID: id, Email: email}, nil
-}
-
-// ── Chain: try each verifier in turn ─────────────────────────
-
-type Chain []Verifier
-
-func (c Chain) Verify(ctx context.Context, token string) (Identity, error) {
-	for _, v := range c {
-		if id, err := v.Verify(ctx, token); err == nil {
-			return id, nil
-		}
-	}
-	return Identity{}, ErrInvalidToken
+	ver, _ := claims["ver"].(float64)
+	return Identity{UserID: id, Email: email, Version: int(ver)}, nil
 }

@@ -6,8 +6,20 @@ export type PaymentMethod = 'bank_transfer' | 'check' | 'cash' | 'credit_card'
 export type TaskStatus = 'open' | 'in_progress' | 'done' | 'cancelled'
 export type ID = string
 
+export type AccountStatus = 'pending' | 'active' | 'disabled'
+
+export interface Invitation {
+  sentAt: string | null
+  createdAt: string
+  expiresAt: string
+  usedAt: string | null
+  status: 'sent' | 'failed' | 'expired' | 'used' | 'revoked'
+  deliveryError: string | null
+}
+
 export interface User {
   id: ID
+  username: string
   email: string
   fullName: string
   phone: string | null
@@ -17,6 +29,38 @@ export interface User {
   avatarColor: string
   isActive: boolean
   createdAt: string
+  status: AccountStatus
+  hasPassword: boolean
+  activatedAt: string | null
+  firstLoginAt: string | null
+  lastLoginAt: string | null
+  loginHistoryKnown: boolean
+  invitation?: Invitation
+}
+
+/** Step 2 of a login: the code was e-mailed. */
+export interface Challenge {
+  challenge: string
+  email: string
+  sent: boolean
+  resendIn: number
+  codeTtl: number
+  flow: 'activation' | 'login'
+}
+
+export interface SessionResponse {
+  token: string
+  expiresAt: string
+  user: User
+  permissions: string[]
+}
+
+export interface LinkInfo {
+  status: 'valid' | 'expired' | 'used' | 'replaced' | 'disabled'
+  username?: string
+  fullName?: string
+  email?: string
+  expiresAt: string
 }
 
 export interface Me {
@@ -440,11 +484,11 @@ export interface Organization {
 export interface PublicConfig {
   appName: string
   organization: Organization
-  authMode: 'dev' | 'firebase'
+  authMode: 'dev' | 'password'
   demoCodeRequired?: boolean
+  passwordPolicy?: { minLength: number; maxBytes: number }
   timezone: string
   version: string
-  firebase: { apiKey: string; authDomain: string; projectId: string; appId: string }
 }
 
 /** Occupied period in the coordinator availability calendar. */

@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Monitor } from 'lucide-react'
 import { useState } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
+import { PasswordLogin } from '@/components/AuthForms'
 import { Logo, PoweredBy, ProductMark } from '@/components/layout/Logo'
 import { toast } from '@/components/toast'
 import { Avatar, Button, Input, Spinner } from '@/components/ui'
@@ -14,7 +15,7 @@ import type { Role, User } from '@/lib/types'
 const ORDER: Role[] = ['super_admin', 'admin', 'coordinator', 'staff', 'user']
 
 export function LoginPage() {
-  const { session, config, devLogin, googleLogin } = useAuth()
+  const { session, config, devLogin } = useAuth()
   const org = useOrg()
   const nav = useNavigate()
   const loc = useLocation()
@@ -89,32 +90,16 @@ export function LoginPage() {
           <h2 className="text-2xl font-bold">ברוכים הבאים</h2>
           <p className="mt-1 text-sm text-muted">התחברו כדי לנהל הזמנות, להגיש בקשות או לצפות במשימות.</p>
 
-          {config?.authMode === 'firebase' && (
-            <Button
-              size="lg"
-              variant="secondary"
-              className="mt-8 w-full"
-              loading={busy === 'google'}
-              onClick={async () => {
-                setBusy('google')
-                try {
-                  await googleLogin()
-                  after()
-                } catch (e) {
-                  toast.error(errorMessage(e))
-                } finally {
-                  setBusy(null)
-                }
-              }}
-            >
-              <GoogleIcon /> התחברות עם Google
-            </Button>
+          {config?.authMode === 'password' && (
+            <div className="mt-8">
+              <PasswordLogin onDone={after} />
+            </div>
           )}
 
           {dev && (
             <div className="mt-8">
               <div className="mb-3 rounded-xl border border-amber-300/50 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
-                מצב הדגמה: בחרו משתמש לכניסה. בהפעלת Firebase יופיע כאן כפתור התחברות עם Google.
+                מצב הדגמה: בחרו משתמש לכניסה, ללא סיסמה.
               </div>
               {needCode && (!code || codeRejected) && (
                 <form
@@ -203,15 +188,4 @@ function saveDemoCode(code: string) {
   } catch {
     /* private mode: the code then lasts for this page only */
   }
-}
-
-function GoogleIcon() {
-  return (
-    <svg viewBox="0 0 48 48" className="h-5 w-5" aria-hidden>
-      <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z" />
-      <path fill="#FF3D00" d="m6.3 14.7 6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z" />
-      <path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z" />
-      <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z" />
-    </svg>
-  )
 }

@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -90,7 +91,9 @@ func (s *Service) CreateCoordinator(ctx context.Context, actor Actor, in Coordin
 	if err := v.OrNil(); err != nil {
 		return CoordinatorResult{}, err
 	}
-	if _, err := s.store.UserByEmail(ctx, ui.Email); err == nil {
+	if taken, err := s.store.EmailTaken(ctx, ui.Email, uuid.Nil); err != nil {
+		return CoordinatorResult{}, err
+	} else if taken {
 		v.Add("email", "כבר קיים משתמש עם אימייל זה")
 		return CoordinatorResult{}, v
 	}
@@ -119,7 +122,22 @@ func (s *Service) CreateCoordinator(ctx context.Context, actor Actor, in Coordin
 		}
 		res.SignURL, res.SentVia = s.signURL(res.Contract.Token), s.deliveryChannels()
 	}
+	if in.Contract == "none" {
+		s.inviteOpenedAccount(ctx, actor.ID(), res.User)
+	}
 	return res, nil
+}
+
+// inviteOpenedAccount e-mails the password invitation of an account that
+// just opened (no contract, or contract signed). Failures are visible on the
+// users page, where the invitation can be sent again.
+func (s *Service) inviteOpenedAccount(ctx context.Context, by *uuid.UUID, u domain.User) {
+	if !s.cfg.PasswordAuth() || s.mail == nil || u.HasPassword || !UsableEmail(u.Email) {
+		return
+	}
+	if _, err := s.sendInvitation(ctx, by, u); err != nil {
+		slog.Error("contracts: invitation for opened account", "user", u.ID, "err", err)
+	}
 }
 
 func newContract(ctx context.Context, tx *store.Store, actor Actor, userID uuid.UUID, method, title, body string) (domain.Contract, error) {
@@ -387,9 +405,13 @@ func (s *Service) completeContract(ctx context.Context, c domain.Contract, name,
 		return v
 	}
 	if u, err := s.store.UserByID(ctx, c.UserID); err == nil {
-		site := strings.TrimSuffix(s.signURL(""), "/sign/")
-		s.notifyUser(u, "החשבון שלך הופעל ✅",
-			fmt.Sprintf("שלום %s,\nהחוזה \"%s\" נחתם והחשבון שלך במערכת פעיל.\nכניסה: %s (עם חשבון Google של %s)", u.FullName, c.Title, site, u.Email))
+		if s.cfg.PasswordAuth() && !u.HasPassword {
+			s.inviteOpenedAccount(ctx, nil, u)
+		} else {
+			site := strings.TrimSuffix(s.signURL(""), "/sign/")
+			s.notifyUser(u, "החשבון שלך הופעל ✅",
+				fmt.Sprintf("שלום %s,\nהחוזה \"%s\" נחתם והחשבון שלך במערכת פעיל.\nכניסה: %s (שם משתמש: %s)", u.FullName, c.Title, site, u.Username))
+		}
 	}
 	s.notifyManagers(ctx, "חוזה נחתם", fmt.Sprintf("%s חתם/ה על \"%s\". החשבון הופעל.", c.UserName, c.Title))
 	s.emit(ctx, EvUserChanged, map[string]any{"id": c.UserID}, realtime.TopicStaff)
@@ -426,7 +448,7 @@ func (s *Service) CustomerContract(ctx context.Context, actor Actor, customerID 
 		email = strings.ToLower(strings.TrimSpace(*cu.Email))
 	}
 	if cu.UserID == nil && email == "" {
-		v.Add("email", "כדי לפתוח ללקוח חשבון יש להזין אימייל (חשבון Google) בפרטי הלקוח")
+		v.Add("email", "כדי לפתוח ללקוח חשבון יש להזין אימייל בפרטי הלקוח")
 	}
 	if err := v.OrNil(); err != nil {
 		return CoordinatorResult{}, err
@@ -439,12 +461,18 @@ func (s *Service) CustomerContract(ctx context.Context, actor Actor, customerID 
 			if u, err = tx.UserByID(ctx, *cu.UserID); err != nil {
 				return err
 			}
-		} else if u, err = tx.UserByEmail(ctx, email); err == nil {
+		} else if same, lerr := tx.UsersByEmail(ctx, email); lerr != nil {
+			return lerr
+		} else if len(same) > 1 {
+			v.Add("email", "קיימים כמה חשבונות עם אימייל זה – יש לתקן אותם בניהול המשתמשים")
+			return v
+		} else if len(same) == 1 {
+			u = same[0]
 			if u.Role != domain.RoleUser {
 				v.Add("email", "האימייל של הלקוח שייך למשתמש צוות – יש לעדכן אימייל אחר ללקוח")
 				return v
 			}
-		} else if errors.Is(err, domain.ErrNotFound) {
+		} else {
 			name := cu.Name
 			if cu.ContactName != nil && strings.TrimSpace(*cu.ContactName) != "" {
 				name = strings.TrimSpace(*cu.ContactName)
@@ -452,8 +480,6 @@ func (s *Service) CustomerContract(ctx context.Context, actor Actor, customerID 
 			if u, err = tx.CreateUser(ctx, store.UserInput{Email: email, FullName: name, Phone: cu.Phone, Role: domain.RoleUser}); err != nil {
 				return err
 			}
-		} else {
-			return err
 		}
 		if cu.UserID == nil {
 			if err := tx.SetCustomerUser(ctx, cu.ID, u.ID); err != nil {

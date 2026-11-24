@@ -5,13 +5,16 @@ export class ApiError extends Error {
   code: string
   fields: Record<string, string>
   conflicts: Conflict[]
+  /** Seconds to wait before retrying (rate limits, resend cooldown). */
+  retryAfter: number
 
-  constructor(status: number, body: { error?: string; message?: string; fields?: Record<string, string>; conflicts?: Conflict[] }) {
+  constructor(status: number, body: { error?: string; message?: string; fields?: Record<string, string>; conflicts?: Conflict[]; retryAfter?: number }) {
     super(body.message || 'אירעה שגיאה')
     this.status = status
     this.code = body.error || 'unknown'
     this.fields = body.fields || {}
     this.conflicts = body.conflicts || []
+    this.retryAfter = body.retryAfter || 0
   }
 }
 
@@ -65,7 +68,7 @@ async function request<T>(method: string, path: string, body?: unknown, query?: 
     data = undefined
   }
   if (!res.ok) {
-    if (res.status === 401 && onUnauthorized) onUnauthorized()
+    if (res.status === 401 && token && onUnauthorized) onUnauthorized()
     throw new ApiError(res.status, (data as object) || { message: `שגיאת שרת (${res.status})` })
   }
   return data as T

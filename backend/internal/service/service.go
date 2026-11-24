@@ -5,12 +5,15 @@ package service
 import (
 	"context"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
 
+	"github.com/na06081997-star/CRM_Project/backend/internal/auth"
 	"github.com/na06081997-star/CRM_Project/backend/internal/config"
 	"github.com/na06081997-star/CRM_Project/backend/internal/domain"
+	"github.com/na06081997-star/CRM_Project/backend/internal/mailer"
 	"github.com/na06081997-star/CRM_Project/backend/internal/notify"
 	"github.com/na06081997-star/CRM_Project/backend/internal/realtime"
 	"github.com/na06081997-star/CRM_Project/backend/internal/storage"
@@ -33,11 +36,28 @@ type Service struct {
 	files  storage.Store
 	loc    *time.Location
 	now    func() time.Time
+
+	mail     mailer.Sender // nil: e-mail not configured (demo instances)
+	sessions *auth.Local
+	bg       sync.WaitGroup // background work (password-reset e-mails)
 }
 
 func New(cfg *config.Config, st *store.Store, events Publisher, n Notifier, files storage.Store) *Service {
-	return &Service{cfg: cfg, store: st, events: events, notify: n, files: files, loc: cfg.Location, now: time.Now}
+	if cfg.Auth == (config.AuthPolicy{}) {
+		cfg.Auth = config.DefaultAuthPolicy()
+	}
+	return &Service{cfg: cfg, store: st, events: events, notify: n, files: files, loc: cfg.Location, now: time.Now,
+		sessions: auth.NewLocal(cfg.JWTSecret, cfg.Auth.SessionTTL)}
 }
+
+// SetMailer enables the e-mails of the login flows (invitations, codes, resets).
+func (s *Service) SetMailer(m mailer.Sender) { s.mail = m }
+
+// Sessions issues and verifies session tokens.
+func (s *Service) Sessions() *auth.Local { return s.sessions }
+
+// WaitBackground blocks until background e-mails are sent (tests, shutdown).
+func (s *Service) WaitBackground() { s.bg.Wait() }
 
 func (s *Service) Store() *store.Store { return s.store }
 

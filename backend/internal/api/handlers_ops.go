@@ -309,12 +309,12 @@ func (s *Server) devLogin(w http.ResponseWriter, r *http.Request) {
 		fail(w, r, err)
 		return
 	}
-	tok, exp, err := s.local.Issue(u.ID, u.Email)
+	res, err := s.svc.DemoLogin(u)
 	if err != nil {
 		fail(w, r, err)
 		return
 	}
-	ok(w, map[string]any{"token": tok, "expiresAt": exp, "user": u, "permissions": domain.Permissions(u.Role)})
+	ok(w, res)
 }
 
 func ptrBool(b bool) *bool { return &b }

@@ -22,7 +22,7 @@ export function SettingsPage() {
       <Card title="מצב מערכת">
         <dl className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
           <Item label="גרסה" value={String(health.data?.version ?? config?.version ?? '—')} />
-          <Item label="אימות" value={config?.authMode === 'firebase' ? 'Google / Firebase' : 'מצב הדגמה (dev)'} tone={config?.authMode === 'firebase' ? 'green' : 'amber'} />
+          <Item label="אימות" value={config?.authMode === 'password' ? 'סיסמה + קוד באימייל' : 'מצב הדגמה (dev)'} tone={config?.authMode === 'password' ? 'green' : 'amber'} />
           <Item label="מסד נתונים" value={health.data?.status === 'ok' ? 'תקין' : 'בעיה'} tone={health.data?.status === 'ok' ? 'green' : 'red'} />
           <Item label="אחסון קבצים (Garage S3)" value={health.data?.storage === 'ok' ? 'תקין' : String(health.data?.storage ?? '—')} tone={health.data?.storage === 'ok' ? 'green' : 'amber'} />
           <Item label="חיבורי זמן אמת" value={String(health.data?.wsClients ?? 0)} />

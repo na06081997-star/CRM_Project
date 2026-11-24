@@ -17,10 +17,11 @@ import (
 )
 
 type errorBody struct {
-	Error     string            `json:"error"`
-	Message   string            `json:"message"`
-	Fields    map[string]string `json:"fields,omitempty"`
-	Conflicts []domain.Conflict `json:"conflicts,omitempty"`
+	Error      string            `json:"error"`
+	Message    string            `json:"message"`
+	Fields     map[string]string `json:"fields,omitempty"`
+	Conflicts  []domain.Conflict `json:"conflicts,omitempty"`
+	RetryAfter int               `json:"retryAfter,omitempty"`
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
@@ -39,7 +40,13 @@ func noContent(w http.ResponseWriter)      { w.WriteHeader(http.StatusNoContent)
 func fail(w http.ResponseWriter, r *http.Request, err error) {
 	var ve *domain.ValidationError
 	var ce *domain.ConflictError
+	var ae *domain.AuthError
 	switch {
+	case errors.As(err, &ae):
+		if ae.RetryAfter > 0 {
+			w.Header().Set("Retry-After", strconv.Itoa(ae.RetryAfter))
+		}
+		writeJSON(w, ae.Status, errorBody{Error: ae.Code, Message: ae.Message, RetryAfter: ae.RetryAfter})
 	case errors.As(err, &ve):
 		writeJSON(w, http.StatusUnprocessableEntity, errorBody{Error: "validation", Message: "יש לתקן את השדות המסומנים", Fields: ve.Fields})
 	case errors.As(err, &ce):
