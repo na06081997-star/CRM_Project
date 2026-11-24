@@ -41,7 +41,7 @@ export function customerTemplate(org: string, name: string) {
 6. החתימה פותחת למזמין/ה חשבון במערכת לצפייה בהזמנות ובתשלומים ולהגשת בקשות חדשות.`
 }
 
-const channelLabel: Record<string, string> = { sms019: 'SMS', twilio: 'SMS', email: 'אימייל', telegram: 'טלגרם' }
+const channelLabel: Record<string, string> = { email: 'באימייל' }
 
 /** WhatsApp link with the message ready (to the person's number when known). */
 function whatsappUrl(text: string, phone?: string | null) {
@@ -56,8 +56,8 @@ export function SignLink({ url, sentVia = [], phone, name }: { url: string; sent
   const message = `שלום${name ? ' ' + name : ''}, זה הקישור לחתימה על החוזה מול המתנ״ס: ${url}`
   return (
     <div className="rounded-xl border border-ok/30 bg-emerald-50 p-3 text-sm dark:bg-emerald-950/20">
-      <p className="font-semibold text-ok">{via.length ? `הקישור לחתימה נשלח (${via.join(' + ')})` : 'הקישור לחתימה מוכן'}</p>
-      {!via.length && <p className="mt-0.5 text-xs text-muted">שליחה אוטומטית ב־SMS / אימייל עדיין לא הוגדרה – שלחו את הקישור בוואטסאפ או העתיקו אותו.</p>}
+      <p className="font-semibold text-ok">{via.length ? `הקישור לחתימה נשלח ${via.join(' + ')}` : 'הקישור לחתימה מוכן'}</p>
+      {!via.length && <p className="mt-0.5 text-xs text-muted">שליחת אימייל עדיין לא הוגדרה בשרת – שלחו את הקישור בוואטסאפ או העתיקו אותו.</p>}
       <div className="mt-2 flex items-center gap-2">
         <code dir="ltr" className="min-w-0 flex-1 truncate rounded-lg bg-surface px-2 py-1.5 text-xs">
           {url}

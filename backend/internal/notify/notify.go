@@ -1,5 +1,4 @@
-// Package notify delivers reminders and alerts over pluggable channels.
-// Free channels: console (logs), telegram, email (SMTP). Paid SMS: twilio, sms019.
+// Package notify delivers reminders and alerts by e-mail.
 package notify
 
 import (
@@ -12,17 +11,14 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/na06081997-star/CRM_Project/backend/internal/config"
 	"github.com/na06081997-star/CRM_Project/backend/internal/domain"
 	"github.com/na06081997-star/CRM_Project/backend/internal/mailer"
 )
 
 type Recipient struct {
-	UserID         *uuid.UUID
-	Name           string
-	Phone          string
-	Email          string
-	TelegramChatID string
+	UserID *uuid.UUID
+	Name   string
+	Email  string
 }
 
 type Message struct {
@@ -50,42 +46,17 @@ type Dispatcher struct {
 	rec      Recorder
 }
 
-// NewDispatcher enables the channels listed in NOTIFY_CHANNELS. mail may be
-// nil when SMTP is not configured (the e-mail channel is then skipped).
-func NewDispatcher(cfg *config.Config, rec Recorder, mail mailer.Sender, brand func(context.Context) mailer.Brand) *Dispatcher {
+// NewDispatcher sends every notification by e-mail (the basic pack has no
+// paid channel: SMS, Telegram… are quoted separately per client). Without
+// SMTP settings (local development) messages are only written to the log.
+func NewDispatcher(rec Recorder, mail mailer.Sender, brand func(context.Context) mailer.Brand) *Dispatcher {
 	d := &Dispatcher{rec: rec}
-	for _, name := range cfg.NotifyChannels {
-		switch strings.ToLower(name) {
-		case "console":
-			d.channels = append(d.channels, Console{})
-		case "telegram":
-			if cfg.TelegramBotToken != "" {
-				d.channels = append(d.channels, NewTelegram(cfg.TelegramBotToken))
-			}
-		case "email":
-			if mail != nil {
-				d.channels = append(d.channels, Email{Mailer: mail, Brand: brand})
-			}
-		case "twilio":
-			if cfg.TwilioAccountSID != "" {
-				d.channels = append(d.channels, NewTwilio(cfg.TwilioAccountSID, cfg.TwilioAuthToken, cfg.TwilioFrom))
-			}
-		case "sms019":
-			if cfg.SMS019Token != "" {
-				d.channels = append(d.channels, NewSMS019(cfg.SMS019Username, cfg.SMS019Token, cfg.SMS019Source))
-			}
-		default:
-			slog.Warn("notify: unknown channel ignored", "channel", name)
-		}
-	}
-	if len(d.channels) == 0 {
+	if mail != nil {
+		d.channels = []Channel{Email{Mailer: mail, Brand: brand}}
+	} else {
 		d.channels = []Channel{Console{}}
 	}
-	names := make([]string, len(d.channels))
-	for i, c := range d.channels {
-		names[i] = c.Name()
-	}
-	slog.Info("notify: channels enabled", "channels", names)
+	slog.Info("notify: channel enabled", "channel", d.channels[0].Name())
 	return d
 }
 
@@ -126,10 +97,7 @@ type Console struct{}
 func (Console) Name() string { return "console" }
 
 func (Console) Send(_ context.Context, m Message) (string, error) {
-	addr := m.To.Phone
-	if addr == "" {
-		addr = m.To.Email
-	}
+	addr := m.To.Email
 	if addr == "" {
 		addr = m.To.Name
 	}

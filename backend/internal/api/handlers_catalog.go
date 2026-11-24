@@ -246,7 +246,7 @@ func (s *Server) saveUser(w http.ResponseWriter, r *http.Request) {
 		func(r *http.Request, a service.Actor, u userBody) (userBody, error) {
 			saved, err := s.svc.SaveUser(r.Context(), a, u.ID, u.UserInput)
 			return userBody{ID: saved.ID, UserInput: service.UserInput{Username: saved.Username, Email: saved.Email, FullName: saved.FullName,
-				Phone: saved.Phone, Role: saved.Role, StaffKind: saved.StaffKind, TelegramChatID: saved.TelegramChatID,
+				Phone: saved.Phone, Role: saved.Role, StaffKind: saved.StaffKind,
 				IsActive: saved.IsActive}}, err
 		})(w, r)
 }

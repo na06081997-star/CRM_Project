@@ -91,7 +91,7 @@ func open(ctx context.Context, events service.Publisher) (*app, error) {
 	// service needs the dispatcher: brand is resolved lazily.
 	var svc *service.Service
 	brand := func(ctx context.Context) mailer.Brand { return svc.MailBrand(ctx) }
-	dispatcher := notify.NewDispatcher(cfg, st, mail, brand)
+	dispatcher := notify.NewDispatcher(st, mail, brand)
 	svc = service.New(cfg, st, events, dispatcher, files)
 	if mail != nil {
 		svc.SetMailer(mail)

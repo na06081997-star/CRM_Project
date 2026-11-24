@@ -61,7 +61,7 @@ Only Traefik publishes a port; the backend, database, Redis and Garage live on t
 | Backend | Go 1.23, chi, pgx, gorilla/websocket, go-redis, minio-go — `cmd/` → `api` (handlers) → `service` (use cases) → `store` (repositories), pure rules in `domain` |
 | Data | PostgreSQL with a `btree_gist` **exclusion constraint** that makes overlapping bookings impossible at the database level (buffer included) |
 | Auth | Username/e-mail + password + 6-digit e-mail code, invitations by the super administrator (Hostinger SMTP), or a demo user picker |
-| Notifications | console (dev), Telegram & e-mail (free), Twilio / 019 SMS (paid) — see [docs/notifications.md](docs/notifications.md) |
+| Notifications | E-mail only (Hostinger SMTP); paid channels (SMS…) quoted per client — see [docs/notifications.md](docs/notifications.md) |
 
 ## Quick start (Docker)
 

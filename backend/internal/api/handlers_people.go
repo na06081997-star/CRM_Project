@@ -80,7 +80,7 @@ func (s *Server) cancelContract(w http.ResponseWriter, r *http.Request) {
 	})(w, r)
 }
 
-// Public signing page (the link sent by SMS / e-mail).
+// Public signing page (the link sent by e-mail).
 
 func (s *Server) publicContract(w http.ResponseWriter, r *http.Request) {
 	c, err := s.svc.PublicContract(r.Context(), chi.URLParam(r, "token"))

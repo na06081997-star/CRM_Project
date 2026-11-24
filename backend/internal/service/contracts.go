@@ -30,7 +30,7 @@ type CoordinatorInput struct {
 	FullName string `json:"fullName"`
 	Email    string `json:"email"`
 	Phone    string `json:"phone"`
-	// Contract: "digital" (link sent by SMS + email, the account opens once
+	// Contract: "digital" (link sent by e-mail, the account opens once
 	// signed), "scan" (a signed paper copy will be uploaded) or "none"
 	// (account active right away).
 	Contract string `json:"contract"`
@@ -43,19 +43,16 @@ type CoordinatorResult struct {
 	Contract *domain.Contract `json:"contract"`
 	// SignURL is the signing link (digital contracts), to copy or send again.
 	SignURL string `json:"signUrl,omitempty"`
-	// SentVia lists the channels that really deliver the link (empty: copy and share it yourself).
+	// SentVia is ["email"] when the link was e-mailed (empty: SMTP not configured, copy and share it yourself).
 	SentVia []string `json:"sentVia"`
 }
 
 // deliveryChannels are the configured channels that reach the person (console only logs).
 func (s *Service) deliveryChannels() []string {
-	out := []string{}
-	for _, c := range s.cfg.NotifyChannels {
-		if c != "console" {
-			out = append(out, c)
-		}
+	if s.mail == nil {
+		return []string{}
 	}
-	return out
+	return []string{"email"}
 }
 
 func (s *Service) CreateCoordinator(ctx context.Context, actor Actor, in CoordinatorInput) (CoordinatorResult, error) {
@@ -76,9 +73,6 @@ func (s *Service) CreateCoordinator(ctx context.Context, actor Actor, in Coordin
 	case "digital", "scan":
 		if strings.TrimSpace(in.Title) == "" || strings.TrimSpace(in.Body) == "" {
 			v.Add("body", "יש להזין כותרת ונוסח לחוזה")
-		}
-		if in.Contract == "digital" && in.Phone == "" {
-			v.Add("phone", "לשליחת קישור בהודעה יש להזין טלפון")
 		}
 	default:
 		v.Add("contract", "יש לבחור אפשרות חוזה")
@@ -168,7 +162,7 @@ func (s *Service) signURL(token string) string {
 	return base + "/sign/" + token
 }
 
-// sendContract messages the signing link (SMS / e-mail, per NOTIFY_CHANNELS).
+// sendContract e-mails the signing link.
 func (s *Service) sendContract(ctx context.Context, c domain.Contract, u domain.User) error {
 	expires := time.Now().Add(ContractLinkTTL)
 	if err := s.store.MarkContractSent(ctx, c.ID, expires); err != nil {

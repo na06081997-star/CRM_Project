@@ -113,12 +113,6 @@ func (s *Service) notifyUser(u domain.User, subject, body string) {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 		r := notify.Recipient{UserID: &u.ID, Name: u.FullName, Email: u.Email}
-		if u.Phone != nil {
-			r.Phone = *u.Phone
-		}
-		if u.TelegramChatID != nil {
-			r.TelegramChatID = *u.TelegramChatID
-		}
 		if err := s.notify.Send(ctx, notify.Message{To: r, Subject: subject, Body: body}); err != nil {
 			slog.Warn("notification failed", "user", u.ID, "err", err)
 		}

@@ -25,7 +25,6 @@ export interface User {
   phone: string | null
   role: Role
   staffKind: string | null
-  telegramChatId: string | null
   avatarColor: string
   isActive: boolean
   createdAt: string

@@ -28,18 +28,17 @@ func (r Role) Valid() bool {
 }
 
 type User struct {
-	ID             uuid.UUID `json:"id"`
-	FirebaseUID    *string   `json:"-"`
-	Username       string    `json:"username"`
-	Email          string    `json:"email"`
-	FullName       string    `json:"fullName"`
-	Phone          *string   `json:"phone"`
-	Role           Role      `json:"role"`
-	StaffKind      *string   `json:"staffKind"`
-	TelegramChatID *string   `json:"telegramChatId"`
-	AvatarColor    string    `json:"avatarColor"`
-	IsActive       bool      `json:"isActive"`
-	CreatedAt      time.Time `json:"createdAt"`
+	ID          uuid.UUID `json:"id"`
+	FirebaseUID *string   `json:"-"`
+	Username    string    `json:"username"`
+	Email       string    `json:"email"`
+	FullName    string    `json:"fullName"`
+	Phone       *string   `json:"phone"`
+	Role        Role      `json:"role"`
+	StaffKind   *string   `json:"staffKind"`
+	AvatarColor string    `json:"avatarColor"`
+	IsActive    bool      `json:"isActive"`
+	CreatedAt   time.Time `json:"createdAt"`
 
 	// Account access (filled for user administrators only, see service.ListUsers).
 	Status            string      `json:"status"` // pending | active | disabled

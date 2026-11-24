@@ -9,7 +9,7 @@ import { useOrg } from '@/lib/brand'
 import { dateTime } from '@/lib/format'
 import type { PublicContract } from '@/lib/types'
 
-/** Public page behind the link sent by SMS / e-mail: read, sign with a finger, done. */
+/** Public page behind the link sent by e-mail: read, sign with a finger, done. */
 export function SignPage() {
   const { token = '' } = useParams()
   const org = useOrg()

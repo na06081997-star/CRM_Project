@@ -222,14 +222,9 @@ function UserDialog({ user, passwordMode, onClose }: { user: Partial<User> | nul
             </Select>
           </Field>
         )}
-        <Field label="טלפון נייד (לתזכורות SMS)">
+        <Field label="טלפון נייד">
           <Input dir="ltr" value={f.phone ?? ''} onChange={(e) => setF({ ...f, phone: e.target.value || null })} placeholder="050-0000000" />
         </Field>
-        {!isNew && (
-          <Field label="Telegram chat ID (תזכורות חינם)" hint="המשתמש שולח /start לבוט ומקבל מזהה">
-            <Input dir="ltr" value={f.telegramChatId ?? ''} onChange={(e) => setF({ ...f, telegramChatId: e.target.value || null })} />
-          </Field>
-        )}
         {!isNew && (
           <div className="sm:col-span-2">
             <Toggle checked={f.isActive ?? true} onChange={(v) => setF({ ...f, isActive: v })} label="משתמש פעיל" />

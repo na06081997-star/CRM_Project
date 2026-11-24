@@ -45,21 +45,13 @@ type Config struct {
 	S3Bucket    string
 	S3Region    string
 
-	NotifyChannels   []string
-	ReminderLead     time.Duration
-	TelegramBotToken string
-	SMTPHost         string
-	SMTPPort         int
-	SMTPTLS          string // ssl | starttls | none
-	SMTPUser         string
-	SMTPPassword     string
-	MailFrom         string
-	TwilioAccountSID string
-	TwilioAuthToken  string
-	TwilioFrom       string
-	SMS019Username   string
-	SMS019Token      string
-	SMS019Source     string
+	ReminderLead time.Duration
+	SMTPHost     string
+	SMTPPort     int
+	SMTPTLS      string // ssl | starttls | none
+	SMTPUser     string
+	SMTPPassword string
+	MailFrom     string
 }
 
 func (c *Config) IsProduction() bool { return c.Env == "production" }
@@ -155,24 +147,13 @@ func Load() (*Config, error) {
 		S3Bucket:    get("S3_BUCKET", "crm-files"),
 		S3Region:    get("S3_REGION", "garage"),
 
-		NotifyChannels:   list("NOTIFY_CHANNELS"),
-		ReminderLead:     time.Duration(getInt("REMINDER_LEAD_MINUTES", 60)) * time.Minute,
-		TelegramBotToken: os.Getenv("TELEGRAM_BOT_TOKEN"),
-		SMTPHost:         os.Getenv("SMTP_HOST"),
-		SMTPPort:         getInt("SMTP_PORT", 465),
-		SMTPTLS:          strings.ToLower(os.Getenv("SMTP_TLS")),
-		SMTPUser:         os.Getenv("SMTP_USER"),
-		SMTPPassword:     os.Getenv("SMTP_PASSWORD"),
-		MailFrom:         get("MAIL_FROM", os.Getenv("SMTP_FROM")),
-		TwilioAccountSID: os.Getenv("TWILIO_ACCOUNT_SID"),
-		TwilioAuthToken:  os.Getenv("TWILIO_AUTH_TOKEN"),
-		TwilioFrom:       os.Getenv("TWILIO_FROM"),
-		SMS019Username:   os.Getenv("SMS019_USERNAME"),
-		SMS019Token:      os.Getenv("SMS019_TOKEN"),
-		SMS019Source:     os.Getenv("SMS019_SOURCE"),
-	}
-	if len(c.NotifyChannels) == 0 {
-		c.NotifyChannels = []string{"console"}
+		ReminderLead: time.Duration(getInt("REMINDER_LEAD_MINUTES", 60)) * time.Minute,
+		SMTPHost:     os.Getenv("SMTP_HOST"),
+		SMTPPort:     getInt("SMTP_PORT", 465),
+		SMTPTLS:      strings.ToLower(os.Getenv("SMTP_TLS")),
+		SMTPUser:     os.Getenv("SMTP_USER"),
+		SMTPPassword: os.Getenv("SMTP_PASSWORD"),
+		MailFrom:     get("MAIL_FROM", os.Getenv("SMTP_FROM")),
 	}
 	if c.SMTPTLS == "" {
 		c.SMTPTLS = "starttls"

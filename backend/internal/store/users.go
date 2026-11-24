@@ -13,13 +13,13 @@ import (
 	"github.com/na06081997-star/CRM_Project/backend/internal/domain"
 )
 
-const userCols = `id, firebase_uid, username, email, full_name, phone, role, staff_kind, telegram_chat_id, avatar_color, is_active, created_at,
+const userCols = `id, firebase_uid, username, email, full_name, phone, role, staff_kind, avatar_color, is_active, created_at,
 	password_hash IS NOT NULL, activated_at, first_login_at, last_login_at, login_history_known, token_version`
 
 func scanUser(r pgx.Row) (domain.User, error) {
 	var u domain.User
 	err := r.Scan(&u.ID, &u.FirebaseUID, &u.Username, &u.Email, &u.FullName, &u.Phone, &u.Role, &u.StaffKind,
-		&u.TelegramChatID, &u.AvatarColor, &u.IsActive, &u.CreatedAt,
+		&u.AvatarColor, &u.IsActive, &u.CreatedAt,
 		&u.HasPassword, &u.ActivatedAt, &u.FirstLoginAt, &u.LastLoginAt, &u.LoginHistoryKnown, &u.TokenVersion)
 	switch {
 	case !u.IsActive:
@@ -81,15 +81,14 @@ func (s *Store) ListUsers(ctx context.Context, f UserFilter) ([]domain.User, err
 }
 
 type UserInput struct {
-	Username       string
-	Email          string
-	FullName       string
-	Phone          *string
-	Role           domain.Role
-	StaffKind      *string
-	TelegramChatID *string
-	IsActive       bool
-	FirebaseUID    *string
+	Username    string
+	Email       string
+	FullName    string
+	Phone       *string
+	Role        domain.Role
+	StaffKind   *string
+	IsActive    bool
+	FirebaseUID *string
 }
 
 // CreateUser inserts an account; an empty Username is derived from the e-mail.
@@ -102,19 +101,19 @@ func (s *Store) CreateUser(ctx context.Context, in UserInput) (domain.User, erro
 		in.Username = name
 	}
 	return scanUser(s.q.QueryRow(ctx, `
-		INSERT INTO users (username, email, full_name, phone, role, staff_kind, telegram_chat_id, is_active, firebase_uid, avatar_color)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9,
+		INSERT INTO users (username, email, full_name, phone, role, staff_kind, is_active, firebase_uid, avatar_color)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8,
 		        (ARRAY['#0f766e','#7c3aed','#c2410c','#0369a1','#be123c','#4d7c0f','#a16207'])[1 + floor(random() * 7)::int])
 		RETURNING `+userCols,
-		in.Username, in.Email, in.FullName, in.Phone, in.Role, in.StaffKind, in.TelegramChatID, in.IsActive, in.FirebaseUID))
+		in.Username, in.Email, in.FullName, in.Phone, in.Role, in.StaffKind, in.IsActive, in.FirebaseUID))
 }
 
 func (s *Store) UpdateUser(ctx context.Context, id uuid.UUID, in UserInput) (domain.User, error) {
 	return scanUser(s.q.QueryRow(ctx, `
-		UPDATE users SET username = coalesce(nullif($9, ''), username), email = $2, full_name = $3, phone = $4, role = $5,
-		       staff_kind = $6, telegram_chat_id = $7, is_active = $8, updated_at = now()
+		UPDATE users SET username = coalesce(nullif($8, ''), username), email = $2, full_name = $3, phone = $4, role = $5,
+		       staff_kind = $6, is_active = $7, updated_at = now()
 		WHERE id = $1 RETURNING `+userCols,
-		id, in.Email, in.FullName, in.Phone, in.Role, in.StaffKind, in.TelegramChatID, in.IsActive, in.Username))
+		id, in.Email, in.FullName, in.Phone, in.Role, in.StaffKind, in.IsActive, in.Username))
 }
 
 var usernameStrip = regexp.MustCompile(`[^a-z0-9._-]`)

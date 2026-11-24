@@ -317,7 +317,7 @@ function Schedules() {
       }
       padded={false}
     >
-      <p className="border-b border-line px-5 py-3 text-xs text-muted">המערכת יוצרת משימות לשבוע הקרוב ושולחת תזכורת לעובד/ת לפני המועד (SMS / Telegram / אימייל לפי ההגדרה).</p>
+      <p className="border-b border-line px-5 py-3 text-xs text-muted">המערכת יוצרת משימות לשבוע הקרוב ושולחת תזכורת לעובד/ת לפני המועד (באימייל).</p>
       {data.length === 0 ? (
         <Empty title="אין לו״ז קבוע" />
       ) : (

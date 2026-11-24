@@ -182,7 +182,7 @@ function NewCoordinatorDialog({ open, onClose }: { open: boolean; onClose: () =>
   })
 
   const modes: { value: ContractMode; label: string; hint: string }[] = [
-    { value: 'digital', label: 'חתימה דיגיטלית', hint: 'קישור ב־SMS ובאימייל; החשבון נפתח אחרי החתימה' },
+    { value: 'digital', label: 'חתימה דיגיטלית', hint: 'קישור באימייל; החשבון נפתח אחרי החתימה' },
     { value: 'scan', label: 'חוזה חתום בסריקה', hint: 'מעלים צילום / PDF של החוזה החתום' },
     { value: 'none', label: 'ללא חוזה', hint: 'החשבון פעיל מיד' },
   ]
@@ -221,7 +221,7 @@ function NewCoordinatorDialog({ open, onClose }: { open: boolean; onClose: () =>
           <Field label="שם מלא *" error={errors.fullName}>
             <Input value={f.fullName} onChange={(e) => set('fullName', e.target.value)} autoFocus />
           </Field>
-          <Field label="טלפון נייד" error={errors.phone} hint={f.contract === 'digital' ? 'לשליחת הקישור ב־SMS' : undefined}>
+          <Field label="טלפון נייד" error={errors.phone} hint="ליצירת קשר (לא חובה)">
             <Input type="tel" value={f.phone} onChange={(e) => set('phone', e.target.value)} placeholder="050-000-0000" />
           </Field>
           <Field label="אימייל *" error={errors.email} hint="אליו תישלח ההזמנה לבחירת סיסמה וקודי הכניסה" className="sm:col-span-2">

@@ -35,14 +35,13 @@ func (s *Service) ResolveIdentity(ctx context.Context, id auth.Identity) (domain
 }
 
 type UserInput struct {
-	Username       string      `json:"username"`
-	Email          string      `json:"email"`
-	FullName       string      `json:"fullName"`
-	Phone          *string     `json:"phone"`
-	Role           domain.Role `json:"role"`
-	StaffKind      *string     `json:"staffKind"`
-	TelegramChatID *string     `json:"telegramChatId"`
-	IsActive       bool        `json:"isActive"`
+	Username  string      `json:"username"`
+	Email     string      `json:"email"`
+	FullName  string      `json:"fullName"`
+	Phone     *string     `json:"phone"`
+	Role      domain.Role `json:"role"`
+	StaffKind *string     `json:"staffKind"`
+	IsActive  bool        `json:"isActive"`
 }
 
 func (in *UserInput) validate() error {
@@ -142,7 +141,7 @@ func (s *Service) SaveUser(ctx context.Context, actor Actor, id uuid.UUID, in Us
 		return domain.User{}, err
 	}
 	si := store.UserInput{Username: in.Username, Email: in.Email, FullName: in.FullName, Phone: in.Phone, Role: in.Role,
-		StaffKind: in.StaffKind, TelegramChatID: in.TelegramChatID, IsActive: in.IsActive}
+		StaffKind: in.StaffKind, IsActive: in.IsActive}
 	var u domain.User
 	var err error
 	if id == uuid.Nil {
@@ -165,9 +164,8 @@ func (s *Service) SaveUser(ctx context.Context, actor Actor, id uuid.UUID, in Us
 }
 
 type ProfileInput struct {
-	FullName       string  `json:"fullName"`
-	Phone          *string `json:"phone"`
-	TelegramChatID *string `json:"telegramChatId"`
+	FullName string  `json:"fullName"`
+	Phone    *string `json:"phone"`
 }
 
 func (s *Service) UpdateProfile(ctx context.Context, actor Actor, in ProfileInput) (domain.User, error) {
@@ -175,9 +173,9 @@ func (s *Service) UpdateProfile(ctx context.Context, actor Actor, in ProfileInpu
 	if name := strings.TrimSpace(in.FullName); name != "" {
 		u.FullName = name
 	}
-	u.Phone, u.TelegramChatID = in.Phone, in.TelegramChatID
+	u.Phone = in.Phone
 	return s.store.UpdateUser(ctx, u.ID, store.UserInput{
 		Username: u.Username, Email: u.Email, FullName: u.FullName, Phone: u.Phone, Role: u.Role, StaffKind: u.StaffKind,
-		TelegramChatID: u.TelegramChatID, IsActive: u.IsActive,
+		IsActive: u.IsActive,
 	})
 }
