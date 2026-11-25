@@ -190,3 +190,14 @@ func TestOpenSignResendRenewsExpiry(t *testing.T) {
 		t.Fatalf("resending must reuse the document, got %d", len(f.Docs))
 	}
 }
+
+func TestOpenSignAccountIsClaimedAtStartup(t *testing.T) {
+	// A fresh OpenSign offers its admin set-up page to anyone: the CRM takes
+	// the account on its first sync, without waiting for a contract.
+	svc, _ := setup(t)
+	f := withOpenSign(t, svc)
+	svc.SyncOpenSign(context.Background())
+	if !f.HasAccount() {
+		t.Fatal("the CRM account must be created on the first sync")
+	}
+}

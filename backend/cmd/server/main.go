@@ -182,6 +182,7 @@ func run() error {
 // runScheduler drives recurring background jobs.
 func runScheduler(ctx context.Context, svc *service.Service) {
 	svc.MaterializeSchedules(ctx)
+	svc.SyncOpenSign(ctx) // also claims the OpenSign account right away
 	minute := time.NewTicker(time.Minute)
 	hourly := time.NewTicker(time.Hour)
 	defer minute.Stop()

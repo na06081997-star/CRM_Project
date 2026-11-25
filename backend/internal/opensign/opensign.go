@@ -226,6 +226,14 @@ func (c *Client) sessionToken(ctx context.Context) (string, error) {
 	return c.session, nil
 }
 
+// Ready creates the CRM's OpenSign account if needed and opens a session.
+// A fresh OpenSign offers its admin set-up page to anyone, so the backend
+// claims it as soon as it starts.
+func (c *Client) Ready(ctx context.Context) error {
+	_, err := c.sessionToken(ctx)
+	return err
+}
+
 // SetSessionForTest replaces the cached session (tests of session renewal).
 func (c *Client) SetSessionForTest(s string) {
 	c.mu.Lock()

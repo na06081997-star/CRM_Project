@@ -119,6 +119,10 @@ func (s *Service) SyncOpenSign(ctx context.Context) {
 	if !s.openSignOn() {
 		return
 	}
+	if err := s.sign.Ready(ctx); err != nil {
+		slog.Warn("opensign: not ready", "err", err)
+		return
+	}
 	list, err := s.store.PendingOpenSignContracts(ctx)
 	if err != nil {
 		slog.Error("opensign: pending contracts", "err", err)

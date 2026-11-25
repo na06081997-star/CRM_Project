@@ -68,6 +68,13 @@ func (f *Fake) Complete(docID, ip string) {
 	f.Files["/api/app/files/opensign/cert_"+docID+".pdf"] = []byte("%PDF-1.7 certificate " + docID)
 }
 
+// HasAccount reports whether the CRM's account exists.
+func (f *Fake) HasAccount() bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return len(f.users) > 0
+}
+
 // Decline marks a document declined by its signer.
 func (f *Fake) Decline(docID string) {
 	f.mu.Lock()

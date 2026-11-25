@@ -52,6 +52,9 @@ The backend reads the master key from the same volume
 (`/run/opensign/master_key`). It creates its own OpenSign account on first use
 (e-mail = `OPENSIGN_ACCOUNT_EMAIL`, default the address of `MAIL_FROM`;
 password derived from the master key). **No secret is typed or copied.**
+A fresh OpenSign shows its "add admin" page to anyone, so the backend claims
+the account at start-up and then every minute until it succeeds (log
+`opensign: not ready` while OpenSign is still starting).
 
 To enable it on an environment:
 
