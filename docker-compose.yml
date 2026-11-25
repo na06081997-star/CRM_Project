@@ -10,6 +10,9 @@
 #     UI; Dokploy adds its Traefik labels and network.
 #   - docker-compose.standalone.yml (local / plain VPS): bundled Traefik.
 #     Enabled through COMPOSE_FILE in .env.
+# Optional OpenSign stack (contract signatures, docs/opensign.md): services in
+# the "opensign" profile, enabled with COMPOSE_PROFILES=opensign and
+# OPENSIGN_PUBLIC_URL; its domain is attached to the `opensign` service.
 # No fixed container or network names, so several client stacks can share a host.
 
 name: crm
@@ -44,6 +47,9 @@ services:
         condition: service_healthy
       garage-init:
         condition: service_completed_successfully
+    volumes:
+      # OpenSign's master key (empty when the opensign profile is off).
+      - opensign-secrets:/run/opensign:ro
     networks: [internal]
     healthcheck:
       test: ["CMD", "/app/server", "-healthcheck"]
@@ -118,6 +124,83 @@ services:
         condition: service_healthy
     networks: [internal]
 
+  # ── OpenSign (profile "opensign") ─────────────────────────────────────────
+  # Self-hosted OpenSign, one per environment so each client's documents stay
+  # in its own stack. Secrets are generated on the server by opensign-init.
+
+  opensign-init:
+    image: alpine:3.20
+    profiles: [opensign]
+    command: ["sh", "/init.sh"]
+    environment:
+      OPENSIGN_CERT_NAME: ${ORG_NAME:-CRM} document signing
+      OPENSIGN_CERT_ORG: ${ORG_NAME:-CRM}
+    volumes:
+      - ./docker/opensign/init.sh:/init.sh:ro
+      - opensign-secrets:/secrets
+    networks: [internal]
+
+  opensign-mongo:
+    <<: *restart
+    image: mongo:7
+    profiles: [opensign]
+    volumes:
+      - opensign-mongo:/data/db
+    networks: [internal]
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  opensign-server:
+    <<: *restart
+    image: opensign/opensignserver:main
+    profiles: [opensign]
+    entrypoint: ["sh", "/start-server.sh"]
+    environment:
+      NODE_ENV: production
+      APP_ID: opensign
+      appName: OpenSign
+      MONGODB_URI: mongodb://opensign-mongo:27017/OpenSignDB
+      PARSE_MOUNT: /app
+      SERVER_URL: ${OPENSIGN_PUBLIC_URL:-http://localhost}/api/app
+      PUBLIC_URL: ${OPENSIGN_PUBLIC_URL:-http://localhost}
+      USE_LOCAL: "true"
+      SMTP_ENABLE: "false"
+      TZ: ${TZ:-Asia/Jerusalem}
+    volumes:
+      - ./docker/opensign/start-server.sh:/start-server.sh:ro
+      - opensign-secrets:/secrets:ro
+      - opensign-files:/usr/src/app/files
+    depends_on:
+      opensign-init:
+        condition: service_completed_successfully
+      opensign-mongo:
+        condition: service_healthy
+    networks: [internal]
+
+  opensign-client:
+    <<: *restart
+    image: opensign/opensign:main
+    profiles: [opensign]
+    environment:
+      PUBLIC_URL: ${OPENSIGN_PUBLIC_URL:-http://localhost}
+    networks: [internal]
+
+  # Entry point published by Dokploy (domain → service "opensign", port 80).
+  opensign:
+    <<: *restart
+    image: caddy:2-alpine
+    profiles: [opensign]
+    volumes:
+      - ./docker/opensign/Caddyfile:/etc/caddy/Caddyfile:ro
+    depends_on:
+      - opensign-server
+      - opensign-client
+    networks: [internal]
+
 networks:
   internal: {}
 
@@ -126,3 +209,6 @@ volumes:
   redis-data:
   garage-meta:
   garage-data:
+  opensign-secrets:
+  opensign-mongo:
+  opensign-files:

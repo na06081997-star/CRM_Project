@@ -7,4 +7,5 @@
 - Branches: work on `develop`, keep `demo/<client>` equal to `develop`. `main` (production) only after the owner validates. Deploys are manual in Dokploy.
 - Never commit `.env*` files or secrets. Secrets live in `../envs/<client>/*.env` and in Dokploy.
 - Notifications are e-mail only in the basic pack (docs/notifications.md). Paid channels are quoted per client.
+- Contracts: digital signatures go through the self-hosted OpenSign when enabled, built-in pad as fallback (docs/opensign.md).
 - Auth: password + e-mail code (docs/authentication.md). The demo instance uses the user picker (`AUTH_MODE=dev`).

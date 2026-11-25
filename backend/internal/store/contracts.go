@@ -12,14 +12,20 @@ import (
 
 const contractSelect = `
 	SELECT c.id, c.user_id, c.title, c.body, c.method, c.status, c.token, c.expires_at, c.sent_at,
-	       c.signed_name, c.signed_at, c.signed_ip, c.created_at, u.full_name, u.email, u.phone
+	       c.signed_name, c.signed_at, c.signed_ip, c.created_at, u.full_name, u.email, u.phone,
+	       coalesce(c.opensign_doc_id, ''), c.opensign_url
 	FROM contracts c
 	JOIN users u ON u.id = c.user_id`
 
 func scanContract(r pgx.Row) (domain.Contract, error) {
 	var c domain.Contract
 	err := r.Scan(&c.ID, &c.UserID, &c.Title, &c.Body, &c.Method, &c.Status, &c.Token, &c.ExpiresAt, &c.SentAt,
-		&c.SignedName, &c.SignedAt, &c.SignedIP, &c.CreatedAt, &c.UserName, &c.UserEmail, &c.UserPhone)
+		&c.SignedName, &c.SignedAt, &c.SignedIP, &c.CreatedAt, &c.UserName, &c.UserEmail, &c.UserPhone,
+		&c.OpenSignDocID, &c.OpenSignURL)
+	c.Provider = "builtin"
+	if c.OpenSignDocID != "" {
+		c.Provider = "opensign"
+	}
 	return c, mapErr(err)
 }
 
@@ -65,6 +71,18 @@ func (s *Store) SignContract(ctx context.Context, id uuid.UUID, name, ip string)
 		UPDATE contracts SET status = 'signed', signed_name = $2, signed_ip = $3, signed_at = now(), updated_at = now()
 		WHERE id = $1 AND status = 'pending'`, id, name, ip)
 	return tag.RowsAffected() > 0, mapErr(err)
+}
+
+// SetContractOpenSign links a contract to its OpenSign document.
+func (s *Store) SetContractOpenSign(ctx context.Context, id uuid.UUID, docID, signURL string) error {
+	_, err := s.q.Exec(ctx, `UPDATE contracts SET opensign_doc_id = $2, opensign_url = $3, updated_at = now() WHERE id = $1`, id, docID, signURL)
+	return mapErr(err)
+}
+
+// PendingOpenSignContracts are the contracts waiting for a signature in OpenSign.
+func (s *Store) PendingOpenSignContracts(ctx context.Context) ([]domain.Contract, error) {
+	rows, err := s.q.Query(ctx, contractSelect+` WHERE c.status = 'pending' AND c.opensign_doc_id IS NOT NULL ORDER BY c.created_at`)
+	return collect(rows, err, scanContract)
 }
 
 func (s *Store) CancelContract(ctx context.Context, id uuid.UUID) error {

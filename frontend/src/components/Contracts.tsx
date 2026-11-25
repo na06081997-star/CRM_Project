@@ -275,13 +275,14 @@ export function ContractDialog({ contract, onClose }: { contract: Contract | nul
     >
       <div className="space-y-4">
         <p className="text-sm text-muted">
-          {contract.userName} · {contract.method === 'digital' ? 'חתימה דיגיטלית' : 'סריקה'}
+          {contract.userName} · {contract.method === 'scan' ? 'סריקה' : contract.provider === 'opensign' ? 'חתימה דיגיטלית (OpenSign)' : 'חתימה דיגיטלית'}
           {contract.sentAt && ` · נשלח ${dateTime(contract.sentAt)}`}
         </p>
         {link && <SignLink url={link.url} sentVia={link.sentVia} phone={contract.userPhone} name={contract.userName} />}
         {contract.status === 'signed' && (
           <div className="rounded-xl bg-emerald-50 p-3 text-sm dark:bg-emerald-950/20">
             נחתם ע״י <b>{contract.signedName}</b> {contract.signedAt && `ב־${dateTime(contract.signedAt)}`}
+            {contract.provider === 'opensign' && <p className="mt-1 text-xs text-muted">ה-PDF החתום ואישור החתימה שמורים במסמכים למטה.</p>}
           </div>
         )}
         <PhotoGallery entity="contract" entityId={contract.id} title={contract.method === 'digital' ? 'חתימה' : 'החוזה החתום'} />

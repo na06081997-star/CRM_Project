@@ -162,12 +162,13 @@ func (s *Service) signURL(token string) string {
 	return base + "/sign/" + token
 }
 
-// sendContract e-mails the signing link.
+// sendContract prepares the signature (OpenSign when on) and e-mails the link.
 func (s *Service) sendContract(ctx context.Context, c domain.Contract, u domain.User) error {
 	expires := time.Now().Add(ContractLinkTTL)
 	if err := s.store.MarkContractSent(ctx, c.ID, expires); err != nil {
 		return err
 	}
+	s.prepareSignature(ctx, c, u, expires)
 	org, _ := s.store.Organization(ctx)
 	s.notifyUser(u, "חוזה לחתימה – "+org.Name,
 		fmt.Sprintf("שלום %s,\nמצורף קישור לחתימה דיגיטלית על \"%s\":\n%s\nלאחר החתימה החשבון שלך במערכת ייפתח. הקישור בתוקף עד %s.",
@@ -298,6 +299,8 @@ type PublicContract struct {
 	Name      string     `json:"name"`
 	SignedAt  *time.Time `json:"signedAt"`
 	ExpiresAt time.Time  `json:"expiresAt"`
+	// SignURL is the OpenSign document to sign (empty: built-in signature).
+	SignURL string `json:"signUrl,omitempty"`
 }
 
 func (s *Service) contractForToken(ctx context.Context, token string) (domain.Contract, error) {
@@ -316,11 +319,23 @@ func (s *Service) PublicContract(ctx context.Context, token string) (PublicContr
 	if err != nil {
 		return PublicContract{}, err
 	}
+	if c.Status == domain.ContractPending && c.OpenSignDocID != "" {
+		// The signer may just be back from OpenSign: show the result right away.
+		if err := s.syncContract(ctx, c); err != nil {
+			slog.Warn("opensign: sync on page load", "contract", c.ID, "err", err)
+		} else if c, err = s.store.ContractByID(ctx, c.ID); err != nil {
+			return PublicContract{}, err
+		}
+	}
 	status := c.Status
 	if status == domain.ContractPending && s.now().After(c.ExpiresAt) {
 		status = "expired"
 	}
-	return PublicContract{Title: c.Title, Body: c.Body, Status: status, Name: c.UserName, SignedAt: c.SignedAt, ExpiresAt: c.ExpiresAt}, nil
+	pub := PublicContract{Title: c.Title, Body: c.Body, Status: status, Name: c.UserName, SignedAt: c.SignedAt, ExpiresAt: c.ExpiresAt}
+	if status == domain.ContractPending {
+		pub.SignURL = c.OpenSignURL
+	}
+	return pub, nil
 }
 
 type SignInput struct {
@@ -343,6 +358,8 @@ func (s *Service) SignContract(ctx context.Context, token string, in SignInput, 
 		v.Add("token", "החוזה בוטל")
 	case s.now().After(c.ExpiresAt):
 		v.Add("token", "תוקף הקישור פג – יש לבקש קישור חדש מהמתנ״ס")
+	case c.OpenSignDocID != "":
+		v.Add("token", "החתימה על חוזה זה נעשית בכפתור \"מעבר לחתימה\"")
 	}
 	name := strings.TrimSpace(in.Name)
 	if len([]rune(name)) < 2 || len([]rune(name)) > 120 {

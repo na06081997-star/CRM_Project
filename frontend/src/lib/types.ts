@@ -317,6 +317,8 @@ export interface Contract {
   userName: string
   userEmail: string
   userPhone: string | null
+  /** opensign: signed as a PDF in OpenSign; builtin: signature pad on the CRM page. */
+  provider?: 'opensign' | 'builtin'
 }
 
 export interface PublicContract {
@@ -326,6 +328,8 @@ export interface PublicContract {
   name: string
   signedAt: string | null
   expiresAt: string
+  /** OpenSign document to sign (absent: built-in signature on the page). */
+  signUrl?: string
 }
 
 export interface PriceQuote {

@@ -15,6 +15,7 @@ import (
 	"github.com/na06081997-star/CRM_Project/backend/internal/domain"
 	"github.com/na06081997-star/CRM_Project/backend/internal/mailer"
 	"github.com/na06081997-star/CRM_Project/backend/internal/notify"
+	"github.com/na06081997-star/CRM_Project/backend/internal/opensign"
 	"github.com/na06081997-star/CRM_Project/backend/internal/realtime"
 	"github.com/na06081997-star/CRM_Project/backend/internal/storage"
 	"github.com/na06081997-star/CRM_Project/backend/internal/store"
@@ -40,6 +41,9 @@ type Service struct {
 	mail     mailer.Sender // nil: e-mail not configured (demo instances)
 	sessions *auth.Local
 	bg       sync.WaitGroup // background work (password-reset e-mails)
+
+	sign     *opensign.Client // nil or disabled: built-in signature only
+	signSync sync.Mutex       // one OpenSign status sync at a time
 }
 
 func New(cfg *config.Config, st *store.Store, events Publisher, n Notifier, files storage.Store) *Service {
@@ -52,6 +56,9 @@ func New(cfg *config.Config, st *store.Store, events Publisher, n Notifier, file
 
 // SetMailer enables the e-mails of the login flows (invitations, codes, resets).
 func (s *Service) SetMailer(m mailer.Sender) { s.mail = m }
+
+// SetOpenSign sends digital contracts through OpenSign when it is reachable.
+func (s *Service) SetOpenSign(c *opensign.Client) { s.sign = c }
 
 // Sessions issues and verifies session tokens.
 func (s *Service) Sessions() *auth.Local { return s.sessions }

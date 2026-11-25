@@ -1,0 +1,19 @@
+# Single entry point of OpenSign, published by Dokploy's Traefik on
+# OPENSIGN_PUBLIC_URL (TLS ends at Traefik). Same layout as OpenSign's own
+# Caddyfile: /api/* → server (prefix removed), everything else → web app.
+{
+	auto_https off
+	admin off
+}
+
+:80 {
+	request_body {
+		max_size 100MB
+	}
+	handle_path /api/* {
+		reverse_proxy opensign-server:8080
+	}
+	handle {
+		reverse_proxy opensign-client:3000
+	}
+}

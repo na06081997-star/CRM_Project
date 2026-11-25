@@ -22,6 +22,7 @@ import (
 	"github.com/na06081997-star/CRM_Project/backend/internal/db"
 	"github.com/na06081997-star/CRM_Project/backend/internal/mailer"
 	"github.com/na06081997-star/CRM_Project/backend/internal/notify"
+	"github.com/na06081997-star/CRM_Project/backend/internal/opensign"
 	"github.com/na06081997-star/CRM_Project/backend/internal/realtime"
 	"github.com/na06081997-star/CRM_Project/backend/internal/service"
 	"github.com/na06081997-star/CRM_Project/backend/internal/storage"
@@ -96,6 +97,14 @@ func open(ctx context.Context, events service.Publisher) (*app, error) {
 	if mail != nil {
 		svc.SetMailer(mail)
 	}
+	if cfg.OpenSignPublicURL != "" {
+		company := cfg.OrgName
+		if company == "" {
+			company = cfg.AppName
+		}
+		svc.SetOpenSign(opensign.New(opensign.Config{BaseURL: cfg.OpenSignURL, PublicURL: cfg.OpenSignPublicURL,
+			MasterKeyFile: cfg.OpenSignKeyFile, Email: cfg.OpenSignEmail, Name: cfg.AppName, Company: company}))
+	}
 	return &app{cfg: cfg, st: st, svc: svc, close: pool.Close}, nil
 }
 
@@ -161,7 +170,8 @@ func run() error {
 		svc.WaitBackground()
 	}()
 
-	slog.Info("server listening", "addr", cfg.HTTPAddr, "version", version, "auth", cfg.AuthMode, "env", cfg.Env)
+	slog.Info("server listening", "addr", cfg.HTTPAddr, "version", version, "auth", cfg.AuthMode, "env", cfg.Env,
+		"opensign", svc.OpenSignEnabled())
 	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}
@@ -183,6 +193,7 @@ func runScheduler(ctx context.Context, svc *service.Service) {
 		case <-minute.C:
 			svc.SendDueReminders(ctx)
 			svc.SignageTick(ctx)
+			svc.SyncOpenSign(ctx)
 		case <-hourly.C:
 			svc.MaterializeSchedules(ctx)
 			svc.PurgeAuth(ctx)

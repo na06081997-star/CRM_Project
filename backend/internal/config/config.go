@@ -4,6 +4,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"net/mail"
 	"os"
 	"strconv"
 	"strings"
@@ -52,6 +53,13 @@ type Config struct {
 	SMTPUser     string
 	SMTPPassword string
 	MailFrom     string
+
+	// OpenSign (docs/opensign.md): enabled when OPENSIGN_PUBLIC_URL is set
+	// and the master key written by the opensign-init service is readable.
+	OpenSignURL       string // private address of OpenSign's proxy
+	OpenSignPublicURL string // address signers open
+	OpenSignKeyFile   string
+	OpenSignEmail     string // the CRM's account inside OpenSign
 }
 
 func (c *Config) IsProduction() bool { return c.Env == "production" }
@@ -154,6 +162,17 @@ func Load() (*Config, error) {
 		SMTPUser:     os.Getenv("SMTP_USER"),
 		SMTPPassword: os.Getenv("SMTP_PASSWORD"),
 		MailFrom:     get("MAIL_FROM", os.Getenv("SMTP_FROM")),
+
+		OpenSignURL:       get("OPENSIGN_URL", "http://opensign"),
+		OpenSignPublicURL: strings.TrimRight(os.Getenv("OPENSIGN_PUBLIC_URL"), "/"),
+		OpenSignKeyFile:   get("OPENSIGN_MASTER_KEY_FILE", "/run/opensign/master_key"),
+		OpenSignEmail:     strings.ToLower(os.Getenv("OPENSIGN_ACCOUNT_EMAIL")),
+	}
+	if c.OpenSignEmail == "" {
+		c.OpenSignEmail = "crm@opensign.local"
+		if a, err := mail.ParseAddress(c.MailFrom); err == nil {
+			c.OpenSignEmail = strings.ToLower(a.Address)
+		}
 	}
 	if c.SMTPTLS == "" {
 		c.SMTPTLS = "starttls"

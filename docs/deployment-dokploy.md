@@ -92,11 +92,16 @@ Development uses the production settings too (`APP_ENV=production`, `AUTH_MODE=p
 
 Signage: open `https://<domain>/signage/lobby` full screen on the lobby TV. No login needed; it updates live.
 
+## OpenSign (contract signatures)
+
+Optional per environment: `COMPOSE_PROFILES=opensign`, `OPENSIGN_PUBLIC_URL` and a domain on the `opensign` service. See [opensign.md](opensign.md).
+
 ## Backups
 
 - PostgreSQL: Dokploy → the compose service → **Backups** (S3 destination), or a nightly cron on the host:
   `docker exec <postgres-container> pg_dump -U crm crm | gzip > /var/backups/crm-$(date +%F).sql.gz`
 - Uploaded files: volumes `garage-meta` and `garage-data`.
+- With OpenSign: volumes `opensign-mongo`, `opensign-files` and `opensign-secrets`.
 - Also enable the provider's weekly VPS snapshot.
 
 ## Without Dokploy (plain Docker)

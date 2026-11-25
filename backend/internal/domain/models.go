@@ -358,6 +358,11 @@ type Contract struct {
 	SignedAt   *time.Time `json:"signedAt"`
 	SignedIP   string     `json:"-"`
 	CreatedAt  time.Time  `json:"createdAt"`
+	// OpenSign document and the signer's link there (empty: built-in signature).
+	OpenSignDocID string `json:"-"`
+	OpenSignURL   string `json:"-"`
+	// Provider is "opensign" or "builtin" (shown to managers).
+	Provider string `json:"provider"`
 	// Denormalised
 	UserName  string  `json:"userName"`
 	UserEmail string  `json:"userEmail"`

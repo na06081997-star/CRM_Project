@@ -1,7 +1,7 @@
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { CheckCircle2, Eraser, FileWarning, PenLine } from 'lucide-react'
+import { CheckCircle2, Eraser, ExternalLink, FileWarning, Loader2, PenLine } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, useSearchParams } from 'react-router-dom'
 import { OrgMark, PoweredBy } from '@/components/layout/Logo'
 import { Button, Field, Input, PageLoader } from '@/components/ui'
 import { api, ApiError, errorMessage } from '@/lib/api'
@@ -9,11 +9,24 @@ import { useOrg } from '@/lib/brand'
 import { dateTime } from '@/lib/format'
 import type { PublicContract } from '@/lib/types'
 
-/** Public page behind the link sent by e-mail: read, sign with a finger, done. */
+/**
+ * Public page behind the link sent by e-mail: read, sign, done.
+ * With OpenSign (signUrl set) the signer reads the contract here and signs the
+ * PDF in OpenSign, which sends them back with ?done=1; otherwise they sign with
+ * a finger on this page.
+ */
 export function SignPage() {
   const { token = '' } = useParams()
+  const [params] = useSearchParams()
+  const back = params.get('done') === '1'
   const org = useOrg()
-  const q = useQuery({ queryKey: ['public-contract', token], queryFn: () => api.get<PublicContract>(`/public/contracts/${token}`), retry: false })
+  const q = useQuery({
+    queryKey: ['public-contract', token],
+    queryFn: () => api.get<PublicContract>(`/public/contracts/${token}`),
+    retry: false,
+    // Back from OpenSign: poll until the signature is recorded.
+    refetchInterval: (query) => (back && query.state.data?.status === 'pending' ? 3000 : false),
+  })
   const [name, setName] = useState('')
   const [agree, setAgree] = useState(false)
   const [signature, setSignature] = useState<string | null>(null)
@@ -59,6 +72,37 @@ export function SignPage() {
           <Notice icon={<FileWarning className="h-7 w-7" />} title="תוקף הקישור פג" text="פנו למתנ״ס ונשלח לך קישור חדש לחתימה." />
         ) : c.status !== 'pending' ? (
           <Notice icon={<FileWarning className="h-7 w-7" />} title="החוזה בוטל" text="החוזה אינו זמין עוד לחתימה. לפרטים פנו למתנ״ס." />
+        ) : c.signUrl && back ? (
+          <Notice
+            ok
+            icon={<Loader2 className="h-7 w-7 animate-spin" />}
+            title="החתימה התקבלה, מעדכנים את המערכת…"
+            text="זה לוקח בדרך כלל פחות מדקה. אפשר לסגור את הדף: נשלח אליך אימייל כשהחשבון ייפתח."
+            action={
+              <a href={c.signUrl}>
+                <Button variant="secondary" className="w-full">
+                  לא סיימתי לחתום – חזרה לחתימה
+                </Button>
+              </a>
+            }
+          />
+        ) : c.signUrl ? (
+          <div className="space-y-4">
+            <article className="card p-4 sm:p-6">
+              <h1 className="text-xl font-bold">{c.title}</h1>
+              <p className="mt-1 text-xs text-muted">לחתימה עד {dateTime(c.expiresAt)}</p>
+              <div className="mt-4 whitespace-pre-line text-[15px] leading-relaxed">{c.body}</div>
+            </article>
+            <section className="card space-y-3 p-4 sm:p-6">
+              <p className="text-sm">החתימה נעשית על מסמך PDF מאובטח. בסיום נשמר עותק חתום עם אישור חתימה, והחשבון שלך במערכת נפתח.</p>
+              <a href={c.signUrl} className="block">
+                <Button size="lg" className="w-full">
+                  <PenLine className="h-4 w-4" /> מעבר לחתימה
+                  <ExternalLink className="h-4 w-4" />
+                </Button>
+              </a>
+            </section>
+          </div>
         ) : (
           <div className="space-y-4">
             <article className="card p-4 sm:p-6">
@@ -119,7 +163,8 @@ function SignaturePad({ onChange }: { onChange: (dataUrl: string | null) => void
     const ratio = window.devicePixelRatio || 1
     el.width = el.offsetWidth * ratio
     el.height = el.offsetHeight * ratio
-    const ctx = el.getContext('2d')!
+    const ctx = el.getContext('2d')
+    if (!ctx) return // no canvas support (very old browsers, tests)
     ctx.scale(ratio, ratio)
     ctx.lineWidth = 2.4
     ctx.lineCap = 'round'

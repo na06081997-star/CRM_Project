@@ -61,6 +61,7 @@ Only Traefik publishes a port; the backend, database, Redis and Garage live on t
 | Backend | Go 1.23, chi, pgx, gorilla/websocket, go-redis, minio-go — `cmd/` → `api` (handlers) → `service` (use cases) → `store` (repositories), pure rules in `domain` |
 | Data | PostgreSQL with a `btree_gist` **exclusion constraint** that makes overlapping bookings impossible at the database level (buffer included) |
 | Auth | Username/e-mail + password + 6-digit e-mail code, invitations by the super administrator (Hostinger SMTP), or a demo user picker |
+| Contract signatures | Self-hosted OpenSign per environment (optional compose profile), signed PDFs archived in Garage — see [docs/opensign.md](docs/opensign.md) |
 | Notifications | E-mail only (Hostinger SMTP); paid channels (SMS…) quoted per client — see [docs/notifications.md](docs/notifications.md) |
 
 ## Quick start (Docker)
@@ -105,4 +106,5 @@ See [CONTRIBUTING.md](CONTRIBUTING.md): `main` is always deployable (Dokploy aut
 - [Authentication: password + e-mail code, invitations, recovery](docs/authentication.md)
 - [Deploying on Dokploy](docs/deployment-dokploy.md)
 - [Notifications & SMS options](docs/notifications.md)
+- [Contract signatures with OpenSign](docs/opensign.md)
 - Original specs: [docs/specs](docs/specs)
