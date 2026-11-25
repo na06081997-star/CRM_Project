@@ -46,6 +46,57 @@ function qs(q?: Query) {
   return s ? `?${s}` : ''
 }
 
+/**
+ * Network resilience. Some networks (ISP content filters, mobile hand-overs,
+ * sleeping laptops) break new connections now and then: the browser reports
+ * "Failed to fetch" before any answer. Reads are retried with a short backoff;
+ * changes are never re-sent (they may have reached the server), but after a
+ * pause a safe request first opens a fresh connection, so the change travels
+ * on a connection that works.
+ */
+export const network = {
+  retryDelaysMs: [400, 1200, 2500],
+  /** Idle time after which a change is preceded by a warm-up request. */
+  idleMs: 20_000,
+  lastOk: Date.now(),
+}
+
+const NETWORK_MESSAGE = 'אין חיבור לשרת כרגע. בדקו את החיבור לאינטרנט ונסו שוב.'
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
+function networkError(): ApiError {
+  return new ApiError(0, { error: 'network', message: NETWORK_MESSAGE })
+}
+
+/** fetch that retries failures before any HTTP answer (never for changes). */
+async function send(url: string, init: RequestInit = {}): Promise<Response> {
+  const method = (init.method ?? 'GET').toUpperCase()
+  const safe = method === 'GET' || method === 'HEAD'
+  if (!safe && Date.now() - network.lastOk > network.idleMs) await warmUp()
+  const delays = safe ? network.retryDelaysMs : []
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const res = await fetch(url, init)
+      network.lastOk = Date.now()
+      return res
+    } catch (e) {
+      if ((e as Error)?.name === 'AbortError') throw e
+      if (attempt >= delays.length) throw networkError()
+      await sleep(delays[attempt])
+    }
+  }
+}
+
+/** Opens a fresh, working connection before a change; failures are ignored. */
+async function warmUp() {
+  try {
+    await send('/api/health', { cache: 'no-store' })
+  } catch {
+    // the change below reports the problem
+  }
+}
+
 function authHeaders(): Record<string, string> {
   return token ? { Authorization: `Bearer ${token}` } : {}
 }
@@ -58,7 +109,7 @@ async function request<T>(method: string, path: string, body?: unknown, query?: 
     headers['Content-Type'] = 'application/json'
     payload = JSON.stringify(body)
   }
-  const res = await fetch(`/api${path}${qs(query)}`, { method, headers, body: payload })
+  const res = await send(`/api${path}${qs(query)}`, { method, headers, body: payload })
   if (res.status === 204) return undefined as T
   const text = await res.text()
   let data: unknown
@@ -85,7 +136,7 @@ export const publicFileUrl = (id: string) => `/api/public/files/${id}`
 
 /** Opens a private attachment (fetched with the auth header) in a new tab. */
 export async function openFile(id: string) {
-  const res = await fetch(`/api/files/${id}`, { headers: authHeaders() })
+  const res = await send(`/api/files/${id}`, { headers: authHeaders() })
   if (!res.ok) throw new ApiError(res.status, { message: 'לא ניתן לפתוח את הקובץ' })
   const url = URL.createObjectURL(await res.blob())
   window.open(url, '_blank', 'noopener')
@@ -94,7 +145,7 @@ export async function openFile(id: string) {
 
 /** Fetch a generated file (e.g. an Excel export) with the session and save it under the server's name. */
 export async function download(path: string, query: Query | undefined, fallbackName: string) {
-  const res = await fetch(`/api${path}${qs(query)}`, { headers: authHeaders() })
+  const res = await send(`/api${path}${qs(query)}`, { headers: authHeaders() })
   if (!res.ok) {
     let body: object | undefined
     try {
