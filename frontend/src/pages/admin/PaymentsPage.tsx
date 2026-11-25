@@ -1,12 +1,12 @@
 import clsx from 'clsx'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Banknote, Building2, CreditCard, Download, FileClock, Landmark, ReceiptText, Search, Trash2, Wallet } from 'lucide-react'
+import { Banknote, Building2, CreditCard, FileSpreadsheet, FileClock, Landmark, ReceiptText, Search, Trash2, Wallet } from 'lucide-react'
 import { addMonths, startOfMonth, startOfYear } from 'date-fns'
 import { useState } from 'react'
 import { PaymentDialog } from '@/components/PaymentDialog'
 import { toast } from '@/components/toast'
 import { Badge, Button, Card, Confirm, Empty, IconButton, Input, PageHeader, PageLoader, Stat, Tabs } from '@/components/ui'
-import { api, errorMessage } from '@/lib/api'
+import { api, download, errorMessage } from '@/lib/api'
 import { useCan } from '@/lib/auth'
 import { dateShort, dateTime, fmt, money, timeRange } from '@/lib/format'
 import { paymentMethodLabel } from '@/lib/labels'
@@ -264,13 +264,16 @@ function PaymentsList({ canDelete }: { canDelete: boolean }) {
     onError: (e) => toast.error(errorMessage(e)),
   })
 
-  const exportCsv = () => {
-    const rows = [['תאריך', 'הזמנה', 'לקוח', 'אמצעי', 'אסמכתא', 'סכום'], ...data.map((p) => [dateTime(p.paidAt), p.bookingTitle, p.customerName ?? '', paymentMethodLabel[p.method], p.reference, String(p.amount)])]
-    const csv = '﻿' + rows.map((r) => r.map((c) => `"${c.replace(/"/g, '""')}"`).join(',')).join('\n')
-    const a = document.createElement('a')
-    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
-    a.download = `payments-${new Date().toISOString().slice(0, 10)}.csv`
-    a.click()
+  const [exporting, setExporting] = useState(false)
+  const exportExcel = async () => {
+    setExporting(true)
+    try {
+      await download('/payments/export.xlsx', { method: method || undefined }, 'payments.xlsx')
+    } catch (e) {
+      toast.error(errorMessage(e))
+    } finally {
+      setExporting(false)
+    }
   }
 
   if (isLoading) return <PageLoader />
@@ -288,8 +291,8 @@ function PaymentsList({ canDelete }: { canDelete: boolean }) {
               </option>
             ))}
           </select>
-          <Button size="sm" variant="secondary" icon={<Download className="h-3.5 w-3.5" />} onClick={exportCsv}>
-            CSV
+          <Button size="sm" variant="secondary" icon={<FileSpreadsheet className="h-3.5 w-3.5" />} loading={exporting} onClick={exportExcel}>
+            ייצוא לאקסל
           </Button>
         </>
       }

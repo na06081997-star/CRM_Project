@@ -1,13 +1,13 @@
 import clsx from 'clsx'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { addDays, isSameDay, isToday, parseISO, startOfDay } from 'date-fns'
-import { ChevronLeft, ChevronRight, Filter, FilterX, PanelRightClose, PanelRightOpen, Plus, Printer } from 'lucide-react'
+import { ChevronLeft, ChevronRight, FileSpreadsheet, Filter, FilterX, PanelRightClose, PanelRightOpen, Plus, Printer } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { MultiSelect } from '@/components/MultiSelect'
 import { toast } from '@/components/toast'
 import { Button, IconButton, Select, Spinner, Tabs } from '@/components/ui'
-import { api, ApiError, errorMessage } from '@/lib/api'
+import { api, ApiError, download, errorMessage } from '@/lib/api'
 import { useCan, useUser } from '@/lib/auth'
 import { fmt, timeRange, ltr } from '@/lib/format'
 import { bookingStatusLabel, bookingTypeLabel, typeStyles, weekdayShort } from '@/lib/labels'
@@ -89,21 +89,34 @@ export function CalendarPage({ mode = 'admin' }: { mode?: 'admin' | 'portal' }) 
     [rooms, buildingId, roomIds],
   )
 
+  // Same filters for the list on screen and the Excel export.
+  const bookingQuery = {
+    from: from.toISOString(),
+    to: to.toISOString(),
+    buildingId: buildingId || undefined,
+    roomIds,
+    coordinatorId: coordinatorId || undefined,
+    types,
+    statuses,
+    source: source || undefined,
+  }
+  const [exporting, setExporting] = useState(false)
+  const exportExcel = async () => {
+    setExporting(true)
+    try {
+      await download('/bookings/export.xlsx', bookingQuery, 'bookings.xlsx')
+    } catch (e) {
+      toast.error(errorMessage(e))
+    } finally {
+      setExporting(false)
+    }
+  }
+
   const queryKey = ['bookings', from.toISOString(), to.toISOString(), buildingId, roomIds.join(), coordinatorId, types.join(), statuses.join(), source]
   const adminQuery = useQuery({
     enabled: !portal,
     queryKey,
-    queryFn: () =>
-      api.get<Booking[]>('/bookings', {
-        from: from.toISOString(),
-        to: to.toISOString(),
-        buildingId: buildingId || undefined,
-        roomIds,
-        coordinatorId: coordinatorId || undefined,
-        types,
-        statuses,
-        source: source || undefined,
-      }),
+    queryFn: () => api.get<Booking[]>('/bookings', bookingQuery),
     placeholderData: (prev) => prev,
   })
 
@@ -293,6 +306,11 @@ export function CalendarPage({ mode = 'admin' }: { mode?: 'admin' | 'portal' }) 
           <IconButton label="הדפסה" onClick={() => window.print()} className="hidden sm:inline-flex">
             <Printer className="h-4 w-4" />
           </IconButton>
+          {!portal && (
+            <Button size="sm" variant="secondary" icon={<FileSpreadsheet className="h-4 w-4" />} loading={exporting} onClick={exportExcel}>
+              ייצוא לאקסל
+            </Button>
+          )}
           {(canEdit || portal) && (
             <Button
               icon={<Plus className="h-4 w-4" />}

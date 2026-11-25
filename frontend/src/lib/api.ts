@@ -92,6 +92,31 @@ export async function openFile(id: string) {
   setTimeout(() => URL.revokeObjectURL(url), 60_000)
 }
 
+/** Fetch a generated file (e.g. an Excel export) with the session and save it under the server's name. */
+export async function download(path: string, query: Query | undefined, fallbackName: string) {
+  const res = await fetch(`/api${path}${qs(query)}`, { headers: authHeaders() })
+  if (!res.ok) {
+    let body: object | undefined
+    try {
+      body = await res.json()
+    } catch {
+      body = undefined
+    }
+    if (res.status === 401 && token && onUnauthorized) onUnauthorized()
+    throw new ApiError(res.status, body || { message: `שגיאת שרת (${res.status})` })
+  }
+  const m = /filename\*=UTF-8''([^;]+)/i.exec(res.headers.get('Content-Disposition') ?? '')
+  const name = m ? decodeURIComponent(m[1]) : fallbackName
+  const url = URL.createObjectURL(await res.blob())
+  const a = document.createElement('a')
+  a.href = url
+  a.download = name
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 60_000)
+}
+
 export function errorMessage(e: unknown): string {
   if (e instanceof ApiError) {
     const first = Object.values(e.fields)[0]

@@ -457,3 +457,55 @@ func TestCustomerContractOpensPortalAccount(t *testing.T) {
 		t.Fatal("a customer e-mail owned by staff must be refused")
 	}
 }
+
+// Excel exports hold exactly what the user may see: a coordinator gets only
+// their own bookings and no money columns; payments stay theirs only.
+func TestExportsFollowVisibility(t *testing.T) {
+	svc, st := setup(t)
+	ctx := context.Background()
+	yosef := actor(t, st, "yosef@matnas.local")
+	admin := actor(t, st, "shiri@matnas.local")
+	now := time.Now()
+	f := store.BookingFilter{From: now.AddDate(0, 0, -7), To: now.AddDate(0, 0, 14)}
+
+	all, err := svc.ExportBookings(ctx, admin, f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	own, err := svc.ExportBookings(ctx, yosef, f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(own.Sheets[0].Rows) == 0 || len(own.Sheets[0].Rows) >= len(all.Sheets[0].Rows) {
+		t.Fatalf("coordinator rows %d, admin rows %d", len(own.Sheets[0].Rows), len(all.Sheets[0].Rows))
+	}
+	coordCol := -1
+	for i, c := range own.Sheets[0].Columns {
+		if c.Title == "מחיר" || c.Title == "יתרה" {
+			t.Fatalf("coordinator export must not hold %s", c.Title)
+		}
+		if c.Title == "רכז/ת" {
+			coordCol = i
+		}
+	}
+	for _, row := range own.Sheets[0].Rows {
+		if row[coordCol] != yosef.User.FullName {
+			t.Fatalf("leaked row %v", row)
+		}
+	}
+	if _, err := all.Bytes(); err != nil {
+		t.Fatalf("admin export does not encode: %v", err)
+	}
+
+	pays, err := svc.ExportPayments(ctx, yosef, store.PaymentFilter{})
+	if err != nil || len(pays.Sheets) != 2 || len(pays.Sheets[0].Rows) != 0 || len(pays.Sheets[1].Rows) != 0 {
+		t.Fatalf("coordinator payments export: %v %+v", err, pays.Sheets)
+	}
+	adminPays, err := svc.ExportPayments(ctx, admin, store.PaymentFilter{})
+	if err != nil || len(adminPays.Sheets[0].Rows) == 0 {
+		t.Fatalf("admin payments export: %v", err)
+	}
+	if _, err := adminPays.Bytes(); err != nil {
+		t.Fatal(err)
+	}
+}

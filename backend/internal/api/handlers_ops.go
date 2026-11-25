@@ -22,11 +22,16 @@ import (
 
 func (s *Server) listPayments(w http.ResponseWriter, r *http.Request) {
 	listHandler(func(r *http.Request, a service.Actor) ([]domain.Payment, error) {
-		return s.svc.ListPayments(r.Context(), a, store.PaymentFilter{
-			BookingID: qUUID(r, "bookingId"), CustomerID: qUUID(r, "customerId"), Method: r.URL.Query().Get("method"),
-			From: qTime(r, "from"), To: qTime(r, "to"), Limit: qInt(r, "limit", 500),
-		})
+		return s.svc.ListPayments(r.Context(), a, paymentFilter(r))
 	})(w, r)
+}
+
+// paymentFilter reads the payment filters shared by the list and the export.
+func paymentFilter(r *http.Request) store.PaymentFilter {
+	return store.PaymentFilter{
+		BookingID: qUUID(r, "bookingId"), CustomerID: qUUID(r, "customerId"), Method: r.URL.Query().Get("method"),
+		From: qTime(r, "from"), To: qTime(r, "to"), Limit: qInt(r, "limit", 500),
+	}
 }
 
 func (s *Server) recordPayment(w http.ResponseWriter, r *http.Request) {

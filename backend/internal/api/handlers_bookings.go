@@ -11,7 +11,8 @@ import (
 	"github.com/na06081997-star/CRM_Project/backend/internal/store"
 )
 
-func (s *Server) listBookings(w http.ResponseWriter, r *http.Request) {
+// bookingFilter reads the calendar filters shared by the list and the export.
+func bookingFilter(r *http.Request) store.BookingFilter {
 	f := store.BookingFilter{
 		From: qTime(r, "from"), To: qTime(r, "to"),
 		RoomIDs: qUUIDs(r, "roomIds"), BuildingID: qUUID(r, "buildingId"),
@@ -26,7 +27,11 @@ func (s *Server) listBookings(w http.ResponseWriter, r *http.Request) {
 		f.From = time.Now().AddDate(0, 0, -7)
 		f.To = time.Now().AddDate(0, 0, 31)
 	}
-	list, err := s.svc.ListBookings(r.Context(), mustActor(r), f)
+	return f
+}
+
+func (s *Server) listBookings(w http.ResponseWriter, r *http.Request) {
+	list, err := s.svc.ListBookings(r.Context(), mustActor(r), bookingFilter(r))
 	if err != nil {
 		fail(w, r, err)
 		return

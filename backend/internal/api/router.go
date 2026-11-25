@@ -84,6 +84,7 @@ func (s *Server) Routes() http.Handler {
 
 			r.Route("/bookings", func(r chi.Router) {
 				r.Get("/", s.listBookings)
+				r.Get("/export.xlsx", s.exportBookings)
 				r.Post("/", s.createBooking)
 				r.Post("/check", s.checkBooking)
 				r.Get("/{id}", s.getBooking)
@@ -129,6 +130,7 @@ func (s *Server) Routes() http.Handler {
 			})
 			r.Route("/payments", func(r chi.Router) {
 				r.Get("/", s.listPayments)
+				r.Get("/export.xlsx", s.exportPayments)
 				r.Post("/", s.recordPayment)
 				r.Get("/summary", s.paymentSummary)
 				r.Get("/balances", s.balances)
