@@ -33,9 +33,11 @@ It keeps a "release PR" open with the next version and CHANGELOG. Merging it cre
 
 ## Checklist before a PR
 
+Tests first: see [docs/tdd.md](docs/tdd.md).
+
 ```bash
-cd backend && gofmt -l . && go vet ./... && go test ./...
-cd frontend && npm run lint && npm test && npm run build
+scripts/test.sh        # gofmt, vet, Go unit + integration tests, type check, Vitest
+cd frontend && npm run build
 ```
 
 Never commit `.env` or any credential — configuration comes only from environment variables (see `.env.example`).

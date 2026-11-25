@@ -1,18 +1,18 @@
 import clsx from 'clsx'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { addDays, startOfDay } from 'date-fns'
-import { CalendarDays, Clock, Pencil, Plus, Timer, Users } from 'lucide-react'
+import { Building2, CalendarDays, Clock, DoorOpen, Pencil, Plus, Timer, Users } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Attachments } from '@/components/Attachments'
 import { toast } from '@/components/toast'
-import { Badge, Button, Field, Input, Modal, PageHeader, PageLoader, Select, Textarea, Toggle } from '@/components/ui'
+import { Badge, Button, Empty, Field, Input, Modal, PageHeader, PageLoader, Select, Textarea, Toggle } from '@/components/ui'
 import { api, ApiError, errorMessage } from '@/lib/api'
 import { useCan } from '@/lib/auth'
 import { money, timeRange, ltr, time } from '@/lib/format'
 import { roomKindLabel } from '@/lib/labels'
 import { usePrefs } from '@/lib/prefs'
-import { useLookups } from '@/lib/queries'
+import { useBuildings, useLookups, useRooms } from '@/lib/queries'
 import type { Booking, Room } from '@/lib/types'
 
 const COLORS = ['#7c3aed', '#0f766e', '#0369a1', '#0891b2', '#db2777', '#ca8a04', '#ea580c', '#65a30d', '#be123c', '#475569']
@@ -28,10 +28,15 @@ export function RoomsPage() {
     queryFn: () => api.get<Booking[]>('/bookings', { from: today.toISOString(), to: addDays(today, 1).toISOString(), statuses: ['confirmed'] }),
     refetchInterval: 60_000,
   })
+  const roomsQ = useRooms()
+  const buildingsQ = useBuildings()
   const shown = rooms.filter((r) => !prefBuilding || r.buildingId === prefBuilding)
   const now = Date.now()
 
-  if (!rooms.length && !buildings.length) return <PageLoader />
+  if (roomsQ.isLoading || buildingsQ.isLoading) return <PageLoader />
+
+  const newRoom = () =>
+    setEdit({ buildingId: prefBuilding ?? buildings[0]?.id, color: COLORS[0], isActive: true, isBookable: true, bufferMinutes: 15, minHours: 1, equipment: [], kind: 'other' })
 
   return (
     <div>
@@ -39,13 +44,43 @@ export function RoomsPage() {
         title="חדרים ואולמות"
         subtitle={`${shown.length} חללים · מחירון, כללים, ציוד וזמני חציצה`}
         actions={
-          can('rooms:manage') && (
-            <Button icon={<Plus className="h-4 w-4" />} onClick={() => setEdit({ buildingId: prefBuilding ?? buildings[0]?.id, color: COLORS[0], isActive: true, isBookable: true, bufferMinutes: 15, minHours: 1, equipment: [], kind: 'other' })}>
+          can('rooms:manage') &&
+          buildings.length > 0 && (
+            <Button icon={<Plus className="h-4 w-4" />} onClick={newRoom}>
               חדר חדש
             </Button>
           )
         }
       />
+      {buildings.length === 0 ? (
+        <Empty
+          icon={<Building2 className="h-6 w-6" />}
+          title="עדיין לא הוגדר מבנה"
+          hint="כל חדר שייך למבנה (כתובת ושעות פתיחה). הוסיפו את המבנה הראשון, ואז את החדרים."
+          action={
+            can('settings:manage') ? (
+              <Link to="/admin/settings">
+                <Button icon={<Building2 className="h-4 w-4" />}>הוספת מבנה בהגדרות מערכת</Button>
+              </Link>
+            ) : undefined
+          }
+        />
+      ) : (
+        shown.length === 0 && (
+          <Empty
+            icon={<DoorOpen className="h-6 w-6" />}
+            title="עדיין אין חדרים"
+            hint="הוסיפו חדרים ואולמות עם קיבולת, מחיר לשעה וזמן חציצה."
+            action={
+              can('rooms:manage') ? (
+                <Button icon={<Plus className="h-4 w-4" />} onClick={newRoom}>
+                  חדר חדש
+                </Button>
+              ) : undefined
+            }
+          />
+        )
+      )}
       {buildings
         .filter((b) => !prefBuilding || b.id === prefBuilding)
         .map((b) => {
