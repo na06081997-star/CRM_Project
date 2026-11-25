@@ -144,6 +144,9 @@ services:
     <<: *restart
     image: mongo:7
     profiles: [opensign]
+    # Small footprint: the VPS also runs the other environments.
+    command: ["--wiredTigerCacheSizeGB", "0.25"]
+    mem_limit: 512m
     volumes:
       - opensign-mongo:/data/db
     networks: [internal]
@@ -159,6 +162,7 @@ services:
     image: opensign/opensignserver:main
     profiles: [opensign]
     entrypoint: ["sh", "/start-server.sh"]
+    mem_limit: 1g  # LibreOffice runs here while converting a contract
     environment:
       NODE_ENV: production
       APP_ID: opensign
@@ -185,6 +189,7 @@ services:
     <<: *restart
     image: opensign/opensign:main
     profiles: [opensign]
+    mem_limit: 256m
     environment:
       PUBLIC_URL: ${OPENSIGN_PUBLIC_URL:-http://localhost}
     networks: [internal]
@@ -194,6 +199,7 @@ services:
     <<: *restart
     image: caddy:2-alpine
     profiles: [opensign]
+    mem_limit: 64m
     volumes:
       - ./docker/opensign/Caddyfile:/etc/caddy/Caddyfile:ro
     depends_on:

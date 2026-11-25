@@ -68,8 +68,10 @@ To enable it on an environment:
    all environments) and creates the secrets. The backend log line
    `server listening … opensign=true` confirms the link.
 
-Resources: about 0.6–1 GB of RAM per environment with OpenSign (mostly MongoDB
-and the OpenSign server; LibreOffice runs only while converting).
+Resources: about 0.5 GB of RAM per environment at rest, capped by
+`mem_limit` (MongoDB 512 MB with a 256 MB cache, server 1 GB while LibreOffice
+converts, web app 256 MB, Caddy 64 MB), so OpenSign cannot starve the other
+stacks of the VPS (3.8 GB in November 2026).
 
 Backups: add the `opensign-mongo` and `opensign-files` volumes to the VPS
 backups. The signed PDFs that matter are also in Garage with the contract.
