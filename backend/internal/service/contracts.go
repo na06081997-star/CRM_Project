@@ -114,6 +114,7 @@ func (s *Service) CreateCoordinator(ctx context.Context, actor Actor, in Coordin
 		if err := s.sendContract(ctx, *res.Contract, res.User); err != nil {
 			return res, err
 		}
+		s.refreshContract(ctx, res.Contract)
 		res.SignURL, res.SentVia = s.signURL(res.Contract.Token), s.deliveryChannels()
 	}
 	if in.Contract == "none" {
@@ -160,6 +161,13 @@ func (s *Service) signURL(token string) string {
 		base = strings.TrimRight(s.cfg.CORSOrigins[0], "/")
 	}
 	return base + "/sign/" + token
+}
+
+// refreshContract reloads a contract after sending (OpenSign link added).
+func (s *Service) refreshContract(ctx context.Context, c *domain.Contract) {
+	if fresh, err := s.store.ContractByID(ctx, c.ID); err == nil {
+		*c = fresh
+	}
 }
 
 // sendContract prepares the signature (OpenSign when on) and e-mails the link.
@@ -222,6 +230,7 @@ func (s *Service) CreateContract(ctx context.Context, actor Actor, in ContractIn
 		if err := s.sendContract(ctx, c, u); err != nil {
 			return res, err
 		}
+		s.refreshContract(ctx, res.Contract)
 		res.SignURL, res.SentVia = s.signURL(c.Token), s.deliveryChannels()
 	}
 	return res, nil
@@ -511,6 +520,7 @@ func (s *Service) CustomerContract(ctx context.Context, actor Actor, customerID 
 		if err := s.sendContract(ctx, *res.Contract, res.User); err != nil {
 			return res, err
 		}
+		s.refreshContract(ctx, res.Contract)
 		res.SignURL, res.SentVia = s.signURL(res.Contract.Token), s.deliveryChannels()
 	}
 	return res, nil

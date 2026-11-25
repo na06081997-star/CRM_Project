@@ -38,6 +38,9 @@ func TestOpenSignContractIsSignedAndArchived(t *testing.T) {
 		t.Fatalf("CRM link expected, got %s", res.SignURL)
 	}
 	token := strings.TrimPrefix(res.SignURL, "https://maaleramot.example/sign/")
+	if res.Contract.Provider != "opensign" {
+		t.Fatalf("the answer must show the OpenSign contract, got %s", res.Contract.Provider)
+	}
 	c, _ := st.ContractByID(ctx, res.Contract.ID)
 	if c.Provider != "opensign" || c.OpenSignDocID == "" {
 		t.Fatalf("contract should be in OpenSign: %+v", c)
